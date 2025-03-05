@@ -19,7 +19,7 @@
 
 # Get email notifications for job status
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=<your-email-address>
+#SBATCH --mail-user=fares.schulz@tu-berlin.de
 
 # Default variable values
 rebuild_container=false
