@@ -1,0 +1,33 @@
+# Copyright 2024 tu-studio
+# This file is licensed under the Apache License, Version 2.0.
+# See the LICENSE file in the root of this project for details.
+
+# Ignore typical temporary and system files
+.DS_Store
+__pycache__/
+
+# Ignore Python virtual environments
+venv
+
+# Ignore data files
+logs/*/*
+logs/local_rsync_output.log
+/models
+/exp_logs/*
+
+# Ignore tmp copies for experiments
+/tmp
+
+# Not ignore
+!logs/*/.gitkeep
+!*.dvc
+
+# Ignore personal notes
+NOTES.md
+
+# Ignore singularity image
+*.sif
+
+# Ignore local environment vars
+local.env
+/exp_logs

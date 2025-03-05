@@ -1,0 +1,10 @@
+[core]
+    remote = myremote
+[cache]
+    shared = group
+    type = symlink
+['remote "myremote"']
+    url = webdavs://tubcloud.tu-berlin.de/remote.php/dav/files/<folder-path>
+    # or for ssh
+    # url = ssh://<ssh-alias>:</path/to/remote/directory>
+    timeout = 600
