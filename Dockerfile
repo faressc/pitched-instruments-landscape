@@ -25,6 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Remove apt cache
     && rm -rf /var/lib/apt/lists/*
 
+# The preprocessing needs ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the global.env file
 COPY global.env /tmp/global.env
 
