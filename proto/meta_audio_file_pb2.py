@@ -14,17 +14,19 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15meta_audio_file.proto\x12\x0fmeta_audio_file\"\xaa\x07\n\rMetaAudioFile\x12<\n\naudio_file\x18\x01 \x01(\x0b\x32(.meta_audio_file.MetaAudioFile.AudioFile\x12\x39\n\x08metadata\x18\x02 \x01(\x0b\x32\'.meta_audio_file.MetaAudioFile.MetaData\x1a\x96\x01\n\tAudioFile\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x13\n\x0bsample_rate\x18\x02 \x01(\x03\x12;\n\tprecision\x18\x03 \x01(\x0e\x32(.meta_audio_file.MetaAudioFile.Precision\x12\x14\n\x0cnum_channels\x18\x04 \x01(\x03\x12\x13\n\x0bnum_samples\x18\x05 \x01(\x03\x1a\xcc\x03\n\x08MetaData\x12\x0c\n\x04note\x18\x01 \x01(\x03\x12\x12\n\ninstrument\x18\x02 \x01(\x03\x12\r\n\x05pitch\x18\x03 \x01(\x03\x12\x10\n\x08velocity\x18\x04 \x01(\x03\x12\x11\n\tqualities\x18\x05 \x03(\x03\x12H\n\x06\x66\x61mily\x18\x06 \x01(\x0e\x32\x38.meta_audio_file.MetaAudioFile.MetaData.InstrumentFamily\x12H\n\x06source\x18\x07 \x01(\x0e\x32\x38.meta_audio_file.MetaAudioFile.MetaData.InstrumentSource\"?\n\x10InstrumentSource\x12\x0c\n\x08\x41\x43OUSTIC\x10\x00\x12\x0e\n\nELECTRONIC\x10\x01\x12\r\n\tSYNTHETIC\x10\x02\"\x94\x01\n\x10InstrumentFamily\x12\x08\n\x04\x42\x41SS\x10\x00\x12\t\n\x05\x42RASS\x10\x01\x12\t\n\x05\x46LUTE\x10\x02\x12\n\n\x06GUITAR\x10\x03\x12\x0c\n\x08KEYBOARD\x10\x04\x12\n\n\x06MALLET\x10\x05\x12\t\n\x05ORGAN\x10\x06\x12\x08\n\x04REED\x10\x07\x12\n\n\x06STRING\x10\x08\x12\x0e\n\nSYNTH_LEAD\x10\t\x12\t\n\x05VOCAL\x10\n\x1a\x66\n\nEmbeddings\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12;\n\tprecision\x18\x02 \x01(\x0e\x32(.meta_audio_file.MetaAudioFile.Precision\x12\r\n\x05shape\x18\x03 \x03(\x03\"P\n\tPrecision\x12\x08\n\x04INT8\x10\x00\x12\t\n\x05INT16\x10\x01\x12\t\n\x05INT32\x10\x02\x12\t\n\x05INT64\x10\x03\x12\x0b\n\x07\x46LOAT32\x10\x04\x12\x0b\n\x07\x46LOAT64\x10\x05\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15meta_audio_file.proto\x12\x0fmeta_audio_file\"\xee\t\n\rMetaAudioFile\x12<\n\naudio_file\x18\x01 \x01(\x0b\x32(.meta_audio_file.MetaAudioFile.AudioFile\x12\x39\n\x08metadata\x18\x02 \x01(\x0b\x32\'.meta_audio_file.MetaAudioFile.MetaData\x12\x46\n\x0f\x65ncoder_outputs\x18\x03 \x01(\x0b\x32-.meta_audio_file.MetaAudioFile.EncodecOutputs\x1a\x8e\x01\n\tAudioFile\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x13\n\x0bsample_rate\x18\x02 \x01(\x03\x12\x33\n\x05\x64type\x18\x03 \x01(\x0e\x32$.meta_audio_file.MetaAudioFile.DType\x12\x14\n\x0cnum_channels\x18\x04 \x01(\x03\x12\x13\n\x0bnum_samples\x18\x05 \x01(\x03\x1a\xcc\x03\n\x08MetaData\x12\x0c\n\x04note\x18\x01 \x01(\x03\x12\x12\n\ninstrument\x18\x02 \x01(\x03\x12\r\n\x05pitch\x18\x03 \x01(\x03\x12\x10\n\x08velocity\x18\x04 \x01(\x03\x12\x11\n\tqualities\x18\x05 \x03(\x03\x12H\n\x06\x66\x61mily\x18\x06 \x01(\x0e\x32\x38.meta_audio_file.MetaAudioFile.MetaData.InstrumentFamily\x12H\n\x06source\x18\x07 \x01(\x0e\x32\x38.meta_audio_file.MetaAudioFile.MetaData.InstrumentSource\"?\n\x10InstrumentSource\x12\x0c\n\x08\x41\x43OUSTIC\x10\x00\x12\x0e\n\nELECTRONIC\x10\x01\x12\r\n\tSYNTHETIC\x10\x02\"\x94\x01\n\x10InstrumentFamily\x12\x08\n\x04\x42\x41SS\x10\x00\x12\t\n\x05\x42RASS\x10\x01\x12\t\n\x05\x46LUTE\x10\x02\x12\n\n\x06GUITAR\x10\x03\x12\x0c\n\x08KEYBOARD\x10\x04\x12\n\n\x06MALLET\x10\x05\x12\t\n\x05ORGAN\x10\x06\x12\x08\n\x04REED\x10\x07\x12\n\n\x06STRING\x10\x08\x12\x0e\n\nSYNTH_LEAD\x10\t\x12\t\n\x05VOCAL\x10\n\x1a\xed\x02\n\x0e\x45ncodecOutputs\x12M\n\x0b\x61udio_codes\x18\x01 \x01(\x0b\x32\x38.meta_audio_file.MetaAudioFile.EncodecOutputs.AudioCodes\x12L\n\nembeddings\x18\x02 \x01(\x0b\x32\x38.meta_audio_file.MetaAudioFile.EncodecOutputs.Embeddings\x1a^\n\nAudioCodes\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\x03\x12\x33\n\x05\x64type\x18\x03 \x01(\x0e\x32$.meta_audio_file.MetaAudioFile.DType\x1a^\n\nEmbeddings\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\r\n\x05shape\x18\x02 \x03(\x03\x12\x33\n\x05\x64type\x18\x03 \x01(\x0e\x32$.meta_audio_file.MetaAudioFile.DType\"L\n\x05\x44Type\x12\x08\n\x04INT8\x10\x00\x12\t\n\x05INT16\x10\x01\x12\t\n\x05INT32\x10\x02\x12\t\n\x05INT64\x10\x03\x12\x0b\n\x07\x46LOAT32\x10\x04\x12\x0b\n\x07\x46LOAT64\x10\x05\x62\x06proto3')
 
 
 
 _METAAUDIOFILE = DESCRIPTOR.message_types_by_name['MetaAudioFile']
 _METAAUDIOFILE_AUDIOFILE = _METAAUDIOFILE.nested_types_by_name['AudioFile']
 _METAAUDIOFILE_METADATA = _METAAUDIOFILE.nested_types_by_name['MetaData']
-_METAAUDIOFILE_EMBEDDINGS = _METAAUDIOFILE.nested_types_by_name['Embeddings']
+_METAAUDIOFILE_ENCODECOUTPUTS = _METAAUDIOFILE.nested_types_by_name['EncodecOutputs']
+_METAAUDIOFILE_ENCODECOUTPUTS_AUDIOCODES = _METAAUDIOFILE_ENCODECOUTPUTS.nested_types_by_name['AudioCodes']
+_METAAUDIOFILE_ENCODECOUTPUTS_EMBEDDINGS = _METAAUDIOFILE_ENCODECOUTPUTS.nested_types_by_name['Embeddings']
 _METAAUDIOFILE_METADATA_INSTRUMENTSOURCE = _METAAUDIOFILE_METADATA.enum_types_by_name['InstrumentSource']
 _METAAUDIOFILE_METADATA_INSTRUMENTFAMILY = _METAAUDIOFILE_METADATA.enum_types_by_name['InstrumentFamily']
-_METAAUDIOFILE_PRECISION = _METAAUDIOFILE.enum_types_by_name['Precision']
+_METAAUDIOFILE_DTYPE = _METAAUDIOFILE.enum_types_by_name['DType']
 MetaAudioFile = _reflection.GeneratedProtocolMessageType('MetaAudioFile', (_message.Message,), {
 
   'AudioFile' : _reflection.GeneratedProtocolMessageType('AudioFile', (_message.Message,), {
@@ -41,10 +43,24 @@ MetaAudioFile = _reflection.GeneratedProtocolMessageType('MetaAudioFile', (_mess
     })
   ,
 
-  'Embeddings' : _reflection.GeneratedProtocolMessageType('Embeddings', (_message.Message,), {
-    'DESCRIPTOR' : _METAAUDIOFILE_EMBEDDINGS,
+  'EncodecOutputs' : _reflection.GeneratedProtocolMessageType('EncodecOutputs', (_message.Message,), {
+
+    'AudioCodes' : _reflection.GeneratedProtocolMessageType('AudioCodes', (_message.Message,), {
+      'DESCRIPTOR' : _METAAUDIOFILE_ENCODECOUTPUTS_AUDIOCODES,
+      '__module__' : 'meta_audio_file_pb2'
+      # @@protoc_insertion_point(class_scope:meta_audio_file.MetaAudioFile.EncodecOutputs.AudioCodes)
+      })
+    ,
+
+    'Embeddings' : _reflection.GeneratedProtocolMessageType('Embeddings', (_message.Message,), {
+      'DESCRIPTOR' : _METAAUDIOFILE_ENCODECOUTPUTS_EMBEDDINGS,
+      '__module__' : 'meta_audio_file_pb2'
+      # @@protoc_insertion_point(class_scope:meta_audio_file.MetaAudioFile.EncodecOutputs.Embeddings)
+      })
+    ,
+    'DESCRIPTOR' : _METAAUDIOFILE_ENCODECOUTPUTS,
     '__module__' : 'meta_audio_file_pb2'
-    # @@protoc_insertion_point(class_scope:meta_audio_file.MetaAudioFile.Embeddings)
+    # @@protoc_insertion_point(class_scope:meta_audio_file.MetaAudioFile.EncodecOutputs)
     })
   ,
   'DESCRIPTOR' : _METAAUDIOFILE,
@@ -54,23 +70,29 @@ MetaAudioFile = _reflection.GeneratedProtocolMessageType('MetaAudioFile', (_mess
 _sym_db.RegisterMessage(MetaAudioFile)
 _sym_db.RegisterMessage(MetaAudioFile.AudioFile)
 _sym_db.RegisterMessage(MetaAudioFile.MetaData)
-_sym_db.RegisterMessage(MetaAudioFile.Embeddings)
+_sym_db.RegisterMessage(MetaAudioFile.EncodecOutputs)
+_sym_db.RegisterMessage(MetaAudioFile.EncodecOutputs.AudioCodes)
+_sym_db.RegisterMessage(MetaAudioFile.EncodecOutputs.Embeddings)
 
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _METAAUDIOFILE._serialized_start=43
-  _METAAUDIOFILE._serialized_end=981
-  _METAAUDIOFILE_AUDIOFILE._serialized_start=182
-  _METAAUDIOFILE_AUDIOFILE._serialized_end=332
-  _METAAUDIOFILE_METADATA._serialized_start=335
-  _METAAUDIOFILE_METADATA._serialized_end=795
-  _METAAUDIOFILE_METADATA_INSTRUMENTSOURCE._serialized_start=581
-  _METAAUDIOFILE_METADATA_INSTRUMENTSOURCE._serialized_end=644
-  _METAAUDIOFILE_METADATA_INSTRUMENTFAMILY._serialized_start=647
-  _METAAUDIOFILE_METADATA_INSTRUMENTFAMILY._serialized_end=795
-  _METAAUDIOFILE_EMBEDDINGS._serialized_start=797
-  _METAAUDIOFILE_EMBEDDINGS._serialized_end=899
-  _METAAUDIOFILE_PRECISION._serialized_start=901
-  _METAAUDIOFILE_PRECISION._serialized_end=981
+  _METAAUDIOFILE._serialized_end=1305
+  _METAAUDIOFILE_AUDIOFILE._serialized_start=254
+  _METAAUDIOFILE_AUDIOFILE._serialized_end=396
+  _METAAUDIOFILE_METADATA._serialized_start=399
+  _METAAUDIOFILE_METADATA._serialized_end=859
+  _METAAUDIOFILE_METADATA_INSTRUMENTSOURCE._serialized_start=645
+  _METAAUDIOFILE_METADATA_INSTRUMENTSOURCE._serialized_end=708
+  _METAAUDIOFILE_METADATA_INSTRUMENTFAMILY._serialized_start=711
+  _METAAUDIOFILE_METADATA_INSTRUMENTFAMILY._serialized_end=859
+  _METAAUDIOFILE_ENCODECOUTPUTS._serialized_start=862
+  _METAAUDIOFILE_ENCODECOUTPUTS._serialized_end=1227
+  _METAAUDIOFILE_ENCODECOUTPUTS_AUDIOCODES._serialized_start=1037
+  _METAAUDIOFILE_ENCODECOUTPUTS_AUDIOCODES._serialized_end=1131
+  _METAAUDIOFILE_ENCODECOUTPUTS_EMBEDDINGS._serialized_start=1133
+  _METAAUDIOFILE_ENCODECOUTPUTS_EMBEDDINGS._serialized_end=1227
+  _METAAUDIOFILE_DTYPE._serialized_start=1229
+  _METAAUDIOFILE_DTYPE._serialized_end=1305
 # @@protoc_insertion_point(module_scope)

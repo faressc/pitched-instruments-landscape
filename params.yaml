@@ -1,9 +1,11 @@
 preprocess:
   input_path_valid: data/raw/nsynth-valid
   output_path_valid: data/processed/valid
+  model_name: facebook/encodec_24khz
   sample_rate: 24000
   max_db_size: 10
   ext:
   - wav
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
+device: cuda

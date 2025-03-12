@@ -15,6 +15,7 @@ import json
 import torch
 
 import utils.ffmpeg_helper as ffmpeg
+import utils.config as config
 try:
     from proto.meta_audio_file_pb2 import MetaAudioFile
 except:
@@ -47,14 +48,24 @@ def get_metadata(path: str) -> dict:
         metadata = json.load(f)
     return metadata[filename]
 
+def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[torch.Tensor, torch.Tensor]:
+    audio = audio.astype(np.float32) / (2**15 - 1)
+    device = next(model.parameters()).device
+    x = torch.from_numpy(audio).to(device)
+    x = x.view(1, 1, -1)
+    encoder_outputs = model.encode(x, bandwidth=24.0)
+    audio_codes = encoder_outputs.audio_codes.view(1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3))
+    audio_codes = rearrange(audio_codes, 'b q t -> q b t')
+    embeddings = model.quantizer.decode(audio_codes)
+    return encoder_outputs.audio_codes.detach().cpu().numpy(), embeddings.detach().cpu().numpy()
 
-def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], float, int]], env: lmdb.Environment, sample_rate: int) -> int:
+def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], float, int]], env: lmdb.Environment, sample_rate: int, model: EncodecModel) -> int:
     index, path, audio = audio
     audio_data, duration, num_channels = audio
     audio_file = MetaAudioFile.AudioFile(
         data=audio_data.tobytes(),
         sample_rate=sample_rate,
-        precision=MetaAudioFile.Precision.INT16,
+        dtype=MetaAudioFile.DType.INT16,
         num_channels=num_channels,
         num_samples=audio_data.shape[0]//num_channels
     )
@@ -70,9 +81,29 @@ def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], fl
         source=metadata_dict["instrument_source"],
     )
 
+    audio_codes, embeddings = infer_encodec(audio_data, model)
+
+    audio_codes = MetaAudioFile.EncodecOutputs.AudioCodes(
+        data=audio_codes.tobytes(),
+        dtype=MetaAudioFile.DType.INT64,
+        shape=audio_codes.shape
+    )
+
+    embeddings = MetaAudioFile.EncodecOutputs.Embeddings(
+        data=embeddings.tobytes(),
+        dtype=MetaAudioFile.DType.FLOAT32,
+        shape=embeddings.shape
+    )
+
+    encodec_outputs = MetaAudioFile.EncodecOutputs(
+        audio_codes=audio_codes,
+        embeddings=embeddings
+    )
+
     meta_audio_file = MetaAudioFile(
         audio_file=audio_file,
-        metadata=metadata
+        metadata=metadata,
+        encoder_outputs=encodec_outputs
     )
 
     index_str = f"{index:08}"
@@ -120,9 +151,12 @@ def main():
     audio_data = map(partial_load_audio_file, audio_files)
     audio = zip(range(len(audio_files)), audio_files, audio_data)
 
-    get_metadata(audio_files[0])
-
-    processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate), audio)
+    # Load the model
+    model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
+    device = config.prepare_device(cfg.device)
+    model.to(device)
+    
+    processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate, model=model), audio)
 
     pbar = tqdm(processor, total=len(audio_files))
     total_duration = 0
@@ -133,46 +167,6 @@ def main():
         pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
 
     print(f"Total duration of audio files: {total_duration} seconds")
-    exit()
-
-    # for audio_file in audio_files:
-    #     print(f"Processing {audio_file}")
-    #     audio, duration, num_channels = ffmpeg.load_audio_file(audio_file, cfg.preprocess.sample_rate)
-    #     ffmpeg.write_audio_file(audio, "moin.wav", cfg.preprocess.sample_rate)
-    #     print(f"Audio loaded with duration {duration} and {num_channels} channels")
-
-    # audio_sample = load_and_process_audio(input_file, target_sampling_rate=24000)
-    # audio_sample = audio_sample[:24000*10]
-    # write_wav(audio_sample, 24000, "test.wav")
-
-    model = EncodecModel.from_pretrained("facebook/encodec_24khz")
-    processor = AutoProcessor.from_pretrained("facebook/encodec_24khz")
-    print("The processor sampling rate is: ", processor.sampling_rate)
-    
-    # pre-process the inputs
-    inputs = processor(raw_audio=audio_sample, sampling_rate=processor.sampling_rate, return_tensors="pt")
-
-    encoder_outputs = model.encode(inputs['input_values'], bandwidth=24.0)
-
-    # The model quantizer expects the audio codes to be of shape (quantizer_dim, batch_size, time_steps)
-    audio_codes = encoder_outputs.audio_codes.view(1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3))
-    audio_codes = rearrange(audio_codes, 'b q t -> q b t')
-    embeddings = model.quantizer.decode(audio_codes)
-    audio_values = model.decoder(embeddings)
-    write_wav(audio_values[0].detach().numpy(), 24000, "test_reconstructed_from_embedding.wav")
-
-    # Feedforward the audio codes to the decoder to get the audio values
-    audio_values_direct = model.decode(encoder_outputs.audio_codes, encoder_outputs.audio_scales).audio_values
-    write_wav(audio_values_direct[0].detach().numpy(), 24000, "test_reconstructed_directly.wav")
-    exit()
-
-    # torch.save({
-    #     'X_ordered_training': X_ordered_training,
-    #     'y_ordered_training': y_ordered_training,
-    #     'X_ordered_testing': X_ordered_testing,
-    #     'y_ordered_testing': y_ordered_testing
-    # }, output_file_path)
-    # print("Preprocessing done and data saved.")
 
 if __name__ == "__main__":
     main()

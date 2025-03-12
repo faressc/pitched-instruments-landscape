@@ -5,8 +5,8 @@ package meta_audio_file;
 // Top-level message
 message MetaAudioFile {
 
-    // Precision enum for specifying data precision
-    enum Precision {
+    // DType enum for specifying data type
+    enum DType {
         INT8 = 0;
         INT16 = 1;
         INT32 = 2;
@@ -19,7 +19,7 @@ message MetaAudioFile {
     message AudioFile {
         bytes data = 1;              // Raw audio data
         int64 sample_rate = 2;       // Sampling rate in Hz
-        Precision precision = 3;     // Data precision
+        DType dtype = 3;             // Data type
         int64 num_channels = 4;      // Number of audio channels
         int64 num_samples = 5;       // Total number of samples
     }
@@ -59,13 +59,25 @@ message MetaAudioFile {
     }
 
     // Embedding data representation
-    message Embeddings {
-        bytes data = 1;               // Raw embedding data
-        Precision precision = 2;      // Data precision
-        repeated int64 shape = 3;     // Shape of the embeddings
+    message EncodecOutputs {
+        message AudioCodes {
+            bytes data = 1;               // Audio codes raw data
+            repeated int64 shape = 2;     // Shape of the audio codes
+            DType dtype = 3;              // Data dtype
+        }
+
+        message Embeddings {
+            bytes data = 1;               // Embeddings raw data
+            repeated int64 shape = 2;     // Shape of the embeddings
+            DType dtype = 3;              // Data dtype
+        }
+
+        AudioCodes audio_codes = 1;      // Audio codes data
+        Embeddings embeddings = 2;       // Embeddings data
     }
 
     // Top-level fields
     AudioFile audio_file = 1;        // Audio file details
     MetaData metadata = 2;          // Metadata about the audio
+    EncodecOutputs encoder_outputs = 3;  // Embeddings data representation
 }
