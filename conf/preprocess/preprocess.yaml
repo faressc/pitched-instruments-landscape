@@ -1,0 +1,7 @@
+# input_path_valid: data/raw/nsynth-valid
+input_path_valid: data/moin
+output_path_valid: data/processed/valid
+sample_rate: ${SAMPLING_RATE}
+# Database size in GB
+max_db_size: 10
+ext: ["wav"]

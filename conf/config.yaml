@@ -1,0 +1,24 @@
+# Globale Parameter
+SAMPLING_RATE: 24000
+# N_CHANNELS: 1
+# N_SIGNAL: 131072
+RANDOM_SEED: 42
+
+hydra:
+  run:
+    dir: .
+  job:
+    # Deaktiviert das wechseln des Arbeitsverzeichnisses für Hydra
+    chdir: false
+  output_subdir: null
+  job_logging:
+    disable_existing_loggers: false
+
+defaults:
+  # Additiv mehrere Modellkonfigurationen kombinieren, wie mit gin-config geht mit diesem Beispiel:
+  # dvc exp run --set-param 'model=["v1", "causal"]'
+  - preprocess: preprocess
+  # - model: ["v1", "causal"]
+  # - train: train
+  # - export: export
+  - _self_
