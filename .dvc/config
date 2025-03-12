@@ -4,5 +4,7 @@
     shared = group
     type = symlink
     dir = /home/faressc/faressc/pitched-instruments-landscape/.dvc/cache
+[hydra]
+    enabled = True
 ['remote "myremote"']
     url = ssh://marckh:/home/chef/ml-projects/pitched-instruments-landscape

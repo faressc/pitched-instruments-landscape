@@ -5,10 +5,7 @@ stages:
     - source/preprocess.py
     - data/raw/
     params:
-    - general.input_size
-    - preprocess.input_file
-    - preprocess.target_file
-    - preprocess.test_split
+    - preprocess
     outs:
     - data/processed/
   train:
