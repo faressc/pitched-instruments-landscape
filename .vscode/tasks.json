@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start DVC Experiment Run",
+            "type": "shell",
+            "command": "dvc exp run",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}
