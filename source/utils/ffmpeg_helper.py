@@ -3,19 +3,6 @@ import subprocess
 from typing import Sequence, Iterable
 import numpy as np
 
-def search_for_audios(path: str, extensions: Sequence[str]) -> Iterable[Path]:
-    path = Path(path)
-    audios = []
-    if not path.is_dir():
-        raise ValueError(f"Path {path} is not a directory")
-    for ext in extensions:
-        audios.append(path.rglob(f'*.{ext}'))
-        audios.append(path.rglob(f'*.{ext.upper()}'))
-    # rglob returns a generator list of lists, so we need to flatten it
-    for audio in audios:
-        for a in audio:
-            yield a
-
 def load_audio_file(path: str, sample_rate: int) -> tuple[Sequence[np.ndarray], float, int]:
     
     num_channels = get_audio_channels(path)

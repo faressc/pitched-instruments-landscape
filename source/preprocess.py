@@ -10,8 +10,22 @@ from pedalboard.io import AudioFile
 from transformers import EncodecModel, AutoProcessor
 import librosa
 from einops import rearrange
+from typing import Sequence, Iterable
 
 import utils.debug
+
+def search_for_audios(path: str, extensions: Sequence[str]) -> Iterable[Path]:
+    path = Path(path)
+    audios = []
+    if not path.is_dir():
+        raise ValueError(f"Path {path} is not a directory")
+    for ext in extensions:
+        audios.append(path.rglob(f'*.{ext}'))
+        audios.append(path.rglob(f'*.{ext.upper()}'))
+    # rglob returns a generator list of lists, so we need to flatten it
+    for audio in audios:
+        for a in audio:
+            yield a
 
 def main():
     print("##### Starting Preprocessing Stage #####")
