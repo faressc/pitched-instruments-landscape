@@ -1,3 +1,5 @@
+import utils.debug
+
 from pathlib import Path
 import os
 import utils.ffmpeg_helper as ffmpeg
@@ -5,14 +7,9 @@ import utils.ffmpeg_helper as ffmpeg
 from omegaconf import OmegaConf
 import lmdb
 import numpy as np
-from utils import config
-from pedalboard.io import AudioFile
 from transformers import EncodecModel, AutoProcessor
-import librosa
 from einops import rearrange
 from typing import Sequence, Iterable
-
-import utils.debug
 
 def search_for_audios(path: str, extensions: Sequence[str]) -> Iterable[Path]:
     path = Path(path)
@@ -50,7 +47,7 @@ def main():
 
     print("Searching for audio files")
     # Search for audio files
-    audio_files = ffmpeg.search_for_audios(cfg.preprocess.input_path_valid, cfg.preprocess.ext)
+    audio_files = search_for_audios(cfg.preprocess.input_path_valid, cfg.preprocess.ext)
     audio_files = map(str, audio_files)
     audio_files = map(os.path.abspath, audio_files)
 
@@ -66,7 +63,6 @@ def main():
         ffmpeg.write_audio_file(audio, "moin.wav", cfg.preprocess.sample_rate)
         print(f"Audio loaded with duration {duration} and {num_channels} channels")
 
-    print("len(audio): ", len(audio))
     audio_sample = load_and_process_audio(input_file, target_sampling_rate=24000)
     audio_sample = audio_sample[:24000*10]
     write_wav(audio_sample, 24000, "test.wav")

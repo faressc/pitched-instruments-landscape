@@ -2,16 +2,43 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "preprocess",
+            "label": "DVC stage: preprocess",
             "type": "shell",
-            "command": "dvc repro -s preprocess -f",
-            "group": "build",
-            "presentation": {
-                "reveal": "always",
-                "panel": "shared"
+            "command": "${workspaceFolder}/venv/bin/dvc",
+            "group": "none",
+            "args": [
+                "repro",
+                "-s",
+                "preprocess"
+            ],
+            "options": {
+                "env": {
+                    "DEBUG_MODE": "1"
+                },
             },
             "isBackground": true,
-            "problemMatcher": []
+            // This task is run before some debug tasks.
+            "problemMatcher": [
+                {
+                    "owner": "custom",
+                    "fileLocation": ["relative", "${workspaceFolder}"],
+                    "pattern": [
+                        {
+                            "kind": "file",
+                            "regexp": "ERROR: failed to reproduce '([^']+)': failed to run: python ([^,]+), exited with ([-0-9]+)",
+                            "file": 1,
+                            "message": 0
+                        }
+                    ],
+                    // Signal the launch.json when the task is done with the endPattern.
+                    // So that it can finish the "preLaunchTask" and start the debug session.
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": ".",
+                        "endsPattern": "^Waiting for debugger to attach..."
+                    }
+                }
+            ]
         }
     ]
 }
