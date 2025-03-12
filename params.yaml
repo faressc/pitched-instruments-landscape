@@ -1,5 +1,5 @@
 preprocess:
-  input_path_valid: data/moin
+  input_path_valid: data/raw/nsynth-valid
   output_path_valid: data/processed/valid
   sample_rate: 24000
   max_db_size: 10

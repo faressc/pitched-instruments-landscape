@@ -1,9 +1,9 @@
 from pathlib import Path
 import subprocess
-from typing import Sequence, Iterable
+from typing import Sequence, Iterable, Tuple
 import numpy as np
 
-def load_audio_file(path: str, sample_rate: int) -> tuple[Sequence[np.ndarray], float, int]:
+def load_audio_file(path: str, sample_rate: int) -> Tuple[np.ndarray, float, int]:
     
     num_channels = get_audio_channels(path)
 
@@ -20,15 +20,12 @@ def load_audio_file(path: str, sample_rate: int) -> tuple[Sequence[np.ndarray], 
         processes.append(process)
     
     # Each sample is two bytes because of the s16le format
-    audio_per_channel = []
+    audio = [process.stdout.read() for process in processes]
     for process in processes:
-        audio = process.stdout.read()
-        audio = np.frombuffer(audio, dtype=np.int16)
-        audio_per_channel.append(audio)
         process.wait()
         if process.returncode != 0:
             raise RuntimeError(f"ffmpeg error: {process.stderr.read()}")
-    return audio_per_channel, get_audio_duration(path), get_audio_channels(path)
+    return np.frombuffer(b''.join(audio), dtype=np.int16), get_audio_duration(path), get_audio_channels(path)
 
 def write_audio_file(data: Iterable[np.ndarray], path: str, sample_rate: int):
     num_channels = len(data)

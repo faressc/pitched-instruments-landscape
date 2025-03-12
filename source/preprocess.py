@@ -2,14 +2,25 @@ import utils.debug
 
 from pathlib import Path
 import os
-import utils.ffmpeg_helper as ffmpeg
+from typing import Sequence, Iterable, Tuple
+from functools import partial
 
 from omegaconf import OmegaConf
 import lmdb
 import numpy as np
 from transformers import EncodecModel, AutoProcessor
 from einops import rearrange
-from typing import Sequence, Iterable
+from tqdm import tqdm
+import json
+import torch
+
+import utils.ffmpeg_helper as ffmpeg
+try:
+    from proto.meta_audio_file_pb2 import MetaAudioFile
+except:
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from proto.meta_audio_file_pb2 import MetaAudioFile
 
 def search_for_audios(path: str, extensions: Sequence[str]) -> Iterable[Path]:
     path = Path(path)
@@ -23,6 +34,53 @@ def search_for_audios(path: str, extensions: Sequence[str]) -> Iterable[Path]:
     for audio in audios:
         for a in audio:
             yield a
+
+def get_metadata(path: str) -> dict:
+    path = Path(path)
+    filename = path.stem
+    folder_path = path.parts[:-2]
+    folder_path = Path(*folder_path)
+    metadata_path = folder_path / "examples.json"
+    if not metadata_path.exists():
+        raise FileNotFoundError(f"Metadata file not found for {path}")
+    with open(metadata_path, 'r') as f:
+        metadata = json.load(f)
+    return metadata[filename]
+
+
+def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], float, int]], env: lmdb.Environment, sample_rate: int) -> int:
+    index, path, audio = audio
+    audio_data, duration, num_channels = audio
+    audio_file = MetaAudioFile.AudioFile(
+        data=audio_data.tobytes(),
+        sample_rate=sample_rate,
+        precision=MetaAudioFile.Precision.INT16,
+        num_channels=num_channels,
+        num_samples=audio_data.shape[0]//num_channels
+    )
+
+    metadata_dict = get_metadata(path)
+    metadata = MetaAudioFile.MetaData(
+        note=metadata_dict["note"],
+        instrument=metadata_dict["instrument"],
+        pitch=metadata_dict["pitch"],
+        velocity=metadata_dict["velocity"],
+        qualities=metadata_dict["qualities"],
+        family=metadata_dict["instrument_family"],
+        source=metadata_dict["instrument_source"],
+    )
+
+    meta_audio_file = MetaAudioFile(
+        audio_file=audio_file,
+        metadata=metadata
+    )
+
+    index_str = f"{index:08}"
+    with env.begin(write=True) as txn:
+        txn.put(index_str.encode(), meta_audio_file.SerializeToString())
+
+    return duration
+    
 
 def main():
     print("##### Starting Preprocessing Stage #####")
@@ -57,15 +115,35 @@ def main():
     if len(audio_files) == 0:
         print(f"No audio files found in {cfg.preprocess.input_path_valid}")
 
-    for audio_file in audio_files:
-        print(f"Processing {audio_file}")
-        audio, duration, num_channels = ffmpeg.load_audio_file(audio_file, cfg.preprocess.sample_rate)
-        ffmpeg.write_audio_file(audio, "moin.wav", cfg.preprocess.sample_rate)
-        print(f"Audio loaded with duration {duration} and {num_channels} channels")
+    # Load and process the audio files
+    partial_load_audio_file = partial(ffmpeg.load_audio_file, sample_rate=cfg.preprocess.sample_rate)
+    audio_data = map(partial_load_audio_file, audio_files)
+    audio = zip(range(len(audio_files)), audio_files, audio_data)
 
-    audio_sample = load_and_process_audio(input_file, target_sampling_rate=24000)
-    audio_sample = audio_sample[:24000*10]
-    write_wav(audio_sample, 24000, "test.wav")
+    get_metadata(audio_files[0])
+
+    processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate), audio)
+
+    pbar = tqdm(processor, total=len(audio_files))
+    total_duration = 0
+    for duration in pbar:
+        total_duration += duration
+        hours, remainder = divmod(total_duration, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+
+    print(f"Total duration of audio files: {total_duration} seconds")
+    exit()
+
+    # for audio_file in audio_files:
+    #     print(f"Processing {audio_file}")
+    #     audio, duration, num_channels = ffmpeg.load_audio_file(audio_file, cfg.preprocess.sample_rate)
+    #     ffmpeg.write_audio_file(audio, "moin.wav", cfg.preprocess.sample_rate)
+    #     print(f"Audio loaded with duration {duration} and {num_channels} channels")
+
+    # audio_sample = load_and_process_audio(input_file, target_sampling_rate=24000)
+    # audio_sample = audio_sample[:24000*10]
+    # write_wav(audio_sample, 24000, "test.wav")
 
     model = EncodecModel.from_pretrained("facebook/encodec_24khz")
     processor = AutoProcessor.from_pretrained("facebook/encodec_24khz")

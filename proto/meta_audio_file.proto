@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package meta_audio_file;
+
+// Top-level message
+message MetaAudioFile {
+
+    // Precision enum for specifying data precision
+    enum Precision {
+        INT8 = 0;
+        INT16 = 1;
+        INT32 = 2;
+        INT64 = 3;
+        FLOAT32 = 4;
+        FLOAT64 = 5;
+    }
+
+    // Audio file data and metadata
+    message AudioFile {
+        bytes data = 1;              // Raw audio data
+        int64 sample_rate = 2;       // Sampling rate in Hz
+        Precision precision = 3;     // Data precision
+        int64 num_channels = 4;      // Number of audio channels
+        int64 num_samples = 5;       // Total number of samples
+    }
+
+    // Metadata about the audio file
+    message MetaData {
+
+        // Source of the instrument
+        enum InstrumentSource {
+            ACOUSTIC = 0;
+            ELECTRONIC = 1;
+            SYNTHETIC = 2;
+        }
+
+        // Family of the instrument
+        enum InstrumentFamily {
+            BASS = 0;
+            BRASS = 1;
+            FLUTE = 2;
+            GUITAR = 3;
+            KEYBOARD = 4;
+            MALLET = 5;
+            ORGAN = 6;
+            REED = 7;
+            STRING = 8;
+            SYNTH_LEAD = 9;
+            VOCAL = 10;
+        }
+
+        int64 note = 1;                   // Musical note
+        int64 instrument = 2;             // Instrument ID
+        int64 pitch = 3;                  // Pitch in Hz
+        int64 velocity = 4;               // Velocity (intensity)
+        repeated int64 qualities = 5;     // Additional qualities
+        InstrumentFamily family = 6;      // Instrument family
+        InstrumentSource source = 7;      // Instrument source
+    }
+
+    // Embedding data representation
+    message Embeddings {
+        bytes data = 1;               // Raw embedding data
+        Precision precision = 2;      // Data precision
+        repeated int64 shape = 3;     // Shape of the embeddings
+    }
+
+    // Top-level fields
+    AudioFile audio_file = 1;        // Audio file details
+    MetaData metadata = 2;          // Metadata about the audio
+}
