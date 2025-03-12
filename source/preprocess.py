@@ -1,6 +1,11 @@
+from pathlib import Path
+import os
+import utils.ffmpeg_helper as ffmpeg
+
+from omegaconf import OmegaConf
+import lmdb
 import numpy as np
 from utils import config
-from pathlib import Path
 from pedalboard.io import AudioFile
 from transformers import EncodecModel, AutoProcessor
 import librosa
@@ -8,29 +13,46 @@ from einops import rearrange
 
 import utils.debug
 
-def normalize(data):
-    data_norm = max(max(data), abs(min(data)))
-    return data / data_norm
-
-def load_and_process_audio(file_path, target_sampling_rate):
-    with AudioFile(file_path) as f:
-        data = f.read(f.frames).flatten().astype(np.float32)
-    print(f"Data loaded from {file_path}.")
-    print(f"Resampling data from {f.samplerate} to {target_sampling_rate}.")
-    data_resampled = librosa.resample(data, orig_sr=f.samplerate, target_sr=target_sampling_rate)
-    return data_resampled
-
-def write_wav(data, sampling_rate, file_path):
-    with AudioFile(file_path, 'w', sampling_rate, 1) as f:
-        f.write(data)
-
 def main():
-    # Load the hyperparameters from the params yaml file into a Dictionary
-    params = config.Params('params.yaml')
+    print("##### Starting Preprocessing Stage #####")
 
     # Load the parameters from the dictionary into variables
-    input_file = params['preprocess']['input_file']
+    cfg = OmegaConf.load("params.yaml")
 
+    print(f"Creating LMDB database at {cfg.preprocess.output_path_valid}")
+    # The LMDB database will itself create the final directory, as it has multiple files
+    # The * operator is used to unpack the tuple into single elements
+    output_dir = os.path.join(*os.path.split(cfg.preprocess.output_path_valid)[:-1])
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+
+    # Create a new LMDB database
+    env = lmdb.open(
+        cfg.preprocess.output_path_valid,
+        map_size=cfg.preprocess.max_db_size * 1024**3,
+        # This is needed otherwise python crashes on the hpc
+        writemap=True
+    )
+
+    print("Searching for audio files")
+    # Search for audio files
+    audio_files = ffmpeg.search_for_audios(cfg.preprocess.input_path_valid, cfg.preprocess.ext)
+    audio_files = map(str, audio_files)
+    audio_files = map(os.path.abspath, audio_files)
+
+    # Evaluate the generator
+    audio_files = list(audio_files)
+    print(f"Found {len(audio_files)} audio files")
+    if len(audio_files) == 0:
+        print(f"No audio files found in {cfg.preprocess.input_path_valid}")
+
+    for audio_file in audio_files:
+        print(f"Processing {audio_file}")
+        audio, duration, num_channels = ffmpeg.load_audio_file(audio_file, cfg.preprocess.sample_rate)
+        ffmpeg.write_audio_file(audio, "moin.wav", cfg.preprocess.sample_rate)
+        print(f"Audio loaded with duration {duration} and {num_channels} channels")
+
+    print("len(audio): ", len(audio))
     audio_sample = load_and_process_audio(input_file, target_sampling_rate=24000)
     audio_sample = audio_sample[:24000*10]
     write_wav(audio_sample, 24000, "test.wav")
