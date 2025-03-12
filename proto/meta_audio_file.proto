@@ -25,7 +25,7 @@ message MetaAudioFile {
     }
 
     // Metadata about the audio file
-    message MetaData {
+    message Metadata {
 
         // Source of the instrument
         enum InstrumentSource {
@@ -49,13 +49,14 @@ message MetaAudioFile {
             VOCAL = 10;
         }
 
-        int64 note = 1;                   // Musical note
-        int64 instrument = 2;             // Instrument ID
-        int64 pitch = 3;                  // Pitch in Hz
-        int64 velocity = 4;               // Velocity (intensity)
-        repeated int64 qualities = 5;     // Additional qualities
-        InstrumentFamily family = 6;      // Instrument family
-        InstrumentSource source = 7;      // Instrument source
+        string note_str = 1;           // Description of the audio file
+        int64 note = 2;                   // Musical note
+        int64 instrument = 3;             // Instrument ID
+        int64 pitch = 4;                  // Pitch in Hz
+        int64 velocity = 5;               // Velocity (intensity)
+        repeated int64 qualities = 6;     // Additional qualities
+        InstrumentFamily family = 7;      // Instrument family
+        InstrumentSource source = 8;      // Instrument source
     }
 
     // Embedding data representation
@@ -78,6 +79,6 @@ message MetaAudioFile {
 
     // Top-level fields
     AudioFile audio_file = 1;        // Audio file details
-    MetaData metadata = 2;          // Metadata about the audio
+    Metadata metadata = 2;          // Metadata about the audio
     EncodecOutputs encoder_outputs = 3;  // Embeddings data representation
 }

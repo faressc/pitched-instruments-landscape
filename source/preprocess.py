@@ -71,7 +71,8 @@ def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], fl
     )
 
     metadata_dict = get_metadata(path)
-    metadata = MetaAudioFile.MetaData(
+    metadata = MetaAudioFile.Metadata(
+        note_str=metadata_dict["note_str"],
         note=metadata_dict["note"],
         instrument=metadata_dict["instrument"],
         pitch=metadata_dict["pitch"],
