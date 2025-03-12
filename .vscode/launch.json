@@ -12,7 +12,7 @@
             "console": "integratedTerminal"
         },
         {
-            "preLaunchTask": "Start DVC Experiment Run",
+            "preLaunchTask": "preprocess",
             "name": "Python Debugger: Remote Attach",
             "type": "debugpy",
             "request": "attach",
