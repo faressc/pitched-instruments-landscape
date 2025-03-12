@@ -49,14 +49,15 @@ message MetaAudioFile {
             VOCAL = 10;
         }
 
-        string note_str = 1;           // Description of the audio file
-        int64 note = 2;                   // Musical note
-        int64 instrument = 3;             // Instrument ID
-        int64 pitch = 4;                  // Pitch in Hz
-        int64 velocity = 5;               // Velocity (intensity)
-        repeated int64 qualities = 6;     // Additional qualities
-        InstrumentFamily family = 7;      // Instrument family
-        InstrumentSource source = 8;      // Instrument source
+        int64 note = 1;                     // Musical note
+        string note_str = 2;                // Description of the audio file
+        int64 instrument = 3;               // Instrument ID
+        string instrument_str = 4;          // Description of the instrument
+        int64 pitch = 5;                    // Pitch in Hz
+        int64 velocity = 6;                 // Velocity (intensity)
+        repeated int64 qualities = 7;       // Additional qualities
+        InstrumentFamily family = 8;        // Instrument family
+        InstrumentSource source = 9;        // Instrument source
     }
 
     // Embedding data representation
