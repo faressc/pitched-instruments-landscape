@@ -21,6 +21,6 @@ defaults:
   # dvc exp run --set-param 'model=["v1", "causal"]'
   - preprocess: preprocess
   # - model: ["v1", "causal"]
-  # - train: train
+  - train: train
   # - export: export
   - _self_

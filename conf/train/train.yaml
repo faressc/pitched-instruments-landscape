@@ -1,0 +1,4 @@
+db_path_valid: data/processed/valid
+random_seed: ${RANDOM_SEED}
+batch_size: 32
+num_workers: 8

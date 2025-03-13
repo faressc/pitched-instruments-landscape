@@ -1,3 +1,11 @@
+import utils.debug
+
+from dataset import MetaAudioDataset
+
+from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
+
+
 import torch
 import torchinfo
 from utils import logs, config
@@ -52,76 +60,84 @@ def generate_audio_examples(model, device, dataloader):
     return prediction, target
 
 def main():
-    # Load the hyperparameters from the params yaml file into a Dictionary
-    params = config.Params()
+    print("##### Starting Train Stage #####")
 
     # Load the parameters from the dictionary into variables
-    input_size = params['general']['input_size']
-    random_seed = params['general']['random_seed']
-    epochs = params['train']['epochs']
-    batch_size = params['train']['batch_size']
-    learning_rate = params['train']['learning_rate']
-    device_request = params['train']['device_request']
-    conv1d_strides = params['model']['conv1d_strides']
-    conv1d_filters = params['model']['conv1d_filters']
-    hidden_units = params['model']['hidden_units']
+    cfg = OmegaConf.load("params.yaml")
 
-    # Create a SummaryWriter object to write the tensorboard logs
-    tensorboard_path = logs.return_tensorboard_path()
-    metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
-    writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
 
-    # Set a random seed for reproducibility across all devices. Add more devices if needed
-    config.set_random_seeds(random_seed)
-    # Prepare the requested device for training. Use cpu if the requested device is not available 
-    device = config.prepare_device(device_request)
+    print(f"Dataset length: {len(valid_dataset)}")
 
-    # Load preprocessed data from the input file into the training and testing tensors
-    input_file_path = Path('data/processed/data.pt')
-    data = torch.load(input_file_path)
-    X_ordered_training = data['X_ordered_training']
-    y_ordered_training = data['y_ordered_training']
-    X_ordered_testing = data['X_ordered_testing']
-    y_ordered_testing = data['y_ordered_testing']
+    valid_dataloader = DataLoader(valid_dataset,
+                                  batch_size=cfg.train.batch_size,
+                                  shuffle=True,
+                                  num_workers=cfg.train.num_workers)
+    
+    for i, data in enumerate(valid_dataloader):
+        print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
+        print(f"Data metadata[{i}]: {data['metadata']}")
+        print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
+        if i == 10:
+            break
 
-    # Create the model
-    model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
-    summary = torchinfo.summary(model, (1, 1, input_size), device=device)
-    print(summary)
+    print("Gone through the dataset")
+    # # Create a SummaryWriter object to write the tensorboard logs
+    # tensorboard_path = logs.return_tensorboard_path()
+    # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
+    # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
 
-    # Add the model graph to the tensorboard logs
-    sample_inputs = torch.randn(1, 1, input_size) 
-    writer.add_graph(model, sample_inputs.to(device))
+    # # Set a random seed for reproducibility across all devices. Add more devices if needed
+    # config.set_random_seeds(random_seed)
+    # # Prepare the requested device for training. Use cpu if the requested device is not available 
+    # device = config.prepare_device(device_request)
 
-    # Define the loss function and the optimizer
-    loss_fn = torch.nn.MSELoss(reduction='mean')
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # # Load preprocessed data from the input file into the training and testing tensors
+    # input_file_path = Path('data/processed/data.pt')
+    # data = torch.load(input_file_path)
+    # X_ordered_training = data['X_ordered_training']
+    # y_ordered_training = data['y_ordered_training']
+    # X_ordered_testing = data['X_ordered_testing']
+    # y_ordered_testing = data['y_ordered_testing']
 
-    # Create the dataloaders
-    training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
-    training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
-    testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
-    testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
+    # # Create the model
+    # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
+    # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
+    # print(summary)
 
-    # Training loop
-    for t in range(epochs):
-        print(f"Epoch {t+1}\n-------------------------------")
-        epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
-        epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
-        epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
-        writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
-        writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
-        writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
-        writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
-        writer.step()  
+    # # Add the model graph to the tensorboard logs
+    # sample_inputs = torch.randn(1, 1, input_size) 
+    # writer.add_graph(model, sample_inputs.to(device))
 
-    writer.close()
+    # # Define the loss function and the optimizer
+    # loss_fn = torch.nn.MSELoss(reduction='mean')
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Save the model checkpoint
-    output_file_path = Path('models/checkpoints/model.pth')
-    output_file_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), output_file_path)
-    print("Saved PyTorch Model State to model.pth")
+    # # Create the dataloaders
+    # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
+    # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+    # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
+    # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
+
+    # # Training loop
+    # for t in range(epochs):
+    #     print(f"Epoch {t+1}\n-------------------------------")
+    #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
+    #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
+    #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
+    #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
+    #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
+    #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
+    #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
+    #     writer.step()  
+
+    # writer.close()
+
+    # # Save the model checkpoint
+    # output_file_path = Path('models/checkpoints/model.pth')
+    # output_file_path.parent.mkdir(parents=True, exist_ok=True)
+    # torch.save(model.state_dict(), output_file_path)
+    # print("Saved PyTorch Model State to model.pth")
 
     print("Done with the training stage!")
 
