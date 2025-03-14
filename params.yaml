@@ -11,6 +11,19 @@ train:
   random_seed: 42
   batch_size: 32
   num_workers: 8
+  pitch:
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  - 64
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
 device: cuda

@@ -2,3 +2,4 @@ db_path_valid: data/processed/valid
 random_seed: ${RANDOM_SEED}
 batch_size: 32
 num_workers: 8
+pitch: [53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64]

@@ -3,6 +3,7 @@ from typing import Sequence
 
 import lmdb
 from torch.utils.data import Dataset
+from torch.utils.data import Sampler
 import numpy as np
 try:
     from proto.meta_audio_file_pb2 import MetaAudioFile
@@ -68,4 +69,17 @@ class MetaAudioDataset(Dataset):
             "embeddings": embeddings
         }
         return datapoint
+    
+class FilterPitchSampler(Sampler):
+    def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int]):
+        self.dataset = dataset
+        self.pitch = pitch
+        self.indices = [i for i, data in enumerate(dataset) if data["metadata"]["pitch"] in pitch]
+
+    def __iter__(self):
+        np.random.shuffle(self.indices)
+        return iter(self.indices)
+    
+    def __len__(self):
+        return len(self.indices)
     

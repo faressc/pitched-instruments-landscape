@@ -1,6 +1,7 @@
 import utils.debug
 
 from dataset import MetaAudioDataset
+from dataset import FilterPitchSampler
 
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
@@ -65,21 +66,22 @@ def main():
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
 
+    print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
-
-    print(f"Dataset length: {len(valid_dataset)}")
+    filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.batch_size,
-                                  shuffle=True,
+                                  sampler=filter_pitch_sampler,
+                                  drop_last=True,
                                   num_workers=cfg.train.num_workers)
     
+
     for i, data in enumerate(valid_dataloader):
         print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
-        print(f"Data metadata[{i}]: {data['metadata']}")
+        print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
         print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
-        if i == 10:
-            break
+        break
 
     print("Gone through the dataset")
     # # Create a SummaryWriter object to write the tensorboard logs
