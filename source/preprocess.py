@@ -121,54 +121,69 @@ def main():
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
 
-    print(f"Creating LMDB database at {cfg.preprocess.output_path_valid}")
-    # The LMDB database will itself create the final directory, as it has multiple files
-    # The * operator is used to unpack the tuple into single elements
-    output_dir = os.path.join(*os.path.split(cfg.preprocess.output_path_valid)[:-1])
-    if not os.path.isdir(output_dir):
-        os.makedirs(output_dir)
 
-    # Create a new LMDB database
-    env = lmdb.open(
-        cfg.preprocess.output_path_valid,
-        map_size=cfg.preprocess.max_db_size * 1024**3,
-        # This is needed otherwise python crashes on the hpc
-        writemap=True
-    )
+    input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
+    output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
 
-    print("Searching for audio files")
-    # Search for audio files
-    audio_files = search_for_audios(cfg.preprocess.input_path_valid, cfg.preprocess.ext)
-    audio_files = map(str, audio_files)
-    audio_files = map(os.path.abspath, audio_files)
+    for input_path, output_path in zip(input_paths, output_paths):
 
-    # Evaluate the generator
-    audio_files = list(audio_files)
-    print(f"Found {len(audio_files)} audio files")
-    if len(audio_files) == 0:
-        print(f"No audio files found in {cfg.preprocess.input_path_valid}")
+        print(f"Creating LMDB database at {output_path}")
 
-    # Load and process the audio files
-    partial_load_audio_file = partial(ffmpeg.load_audio_file, sample_rate=cfg.preprocess.sample_rate)
-    audio_data = map(partial_load_audio_file, audio_files)
-    audio = zip(range(len(audio_files)), audio_files, audio_data)
+        if not os.path.isdir(input_path):
+            raise FileNotFoundError(f"Input path {input_path} does not exist")
+        if os.path.isdir(output_path):
+            raise FileExistsError(f"Output path {output_path} already exists")
+        
+        # The LMDB database will itself create the final directory, as it has multiple files
+        # The * operator is used to unpack the tuple into single elements
+        output_dir = os.path.join(*os.path.split(output_path)[:-1])
+        if not os.path.isdir(output_dir):
+            os.makedirs(output_dir)
 
-    # Load the model
-    model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
-    device = config.prepare_device(cfg.device)
-    model.to(device)
-    
-    processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate, model=model), audio)
+        # Create a new LMDB database
+        env = lmdb.open(
+            output_path,
+            map_size=cfg.preprocess.max_db_size * 1024**3,
+            # This is needed otherwise python crashes on the hpc
+            writemap=True
+        )
 
-    pbar = tqdm(processor, total=len(audio_files))
-    total_duration = 0
-    for duration in pbar:
-        total_duration += duration
-        hours, remainder = divmod(total_duration, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+        print(f"Searching for audio files in {input_path}")
+        # Search for audio files
+        audio_files = search_for_audios(input_path, cfg.preprocess.ext)
+        audio_files = map(str, audio_files)
+        audio_files = map(os.path.abspath, audio_files)
 
-    print(f"Total duration of audio files: {total_duration} seconds")
+        # Evaluate the generator
+        audio_files = list(audio_files)
+        print(f"Found {len(audio_files)} audio files")
+        if len(audio_files) == 0:
+            print(f"No audio files found in {input_path}")
+
+        # Load and process the audio files
+        partial_load_audio_file = partial(ffmpeg.load_audio_file, sample_rate=cfg.preprocess.sample_rate)
+        audio_data = map(partial_load_audio_file, audio_files)
+        audio = zip(range(len(audio_files)), audio_files, audio_data)
+
+        # Load the model
+        model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
+        device = config.prepare_device(cfg.device)
+        model.to(device)
+        
+        processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate, model=model), audio)
+
+        print("Starting preprocessing")
+        pbar = tqdm(processor, total=len(audio_files))
+        total_duration = 0
+        for duration in pbar:
+            total_duration += duration
+            hours, remainder = divmod(total_duration, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+
+        print(f"Total duration of audio files in database ({output_path}): {total_duration} seconds")
+
+        env.close()
 
 if __name__ == "__main__":
     main()
