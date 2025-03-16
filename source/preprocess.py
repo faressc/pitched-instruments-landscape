@@ -121,9 +121,13 @@ def main():
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
 
-
     input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
     output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
+
+    # Load the model
+    model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
+    device = config.prepare_device(cfg.device)
+    model.to(device)
 
     for input_path, output_path in zip(input_paths, output_paths):
 
@@ -164,11 +168,6 @@ def main():
         partial_load_audio_file = partial(ffmpeg.load_audio_file, sample_rate=cfg.preprocess.sample_rate)
         audio_data = map(partial_load_audio_file, audio_files)
         audio = zip(range(len(audio_files)), audio_files, audio_data)
-
-        # Load the model
-        model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
-        device = config.prepare_device(cfg.device)
-        model.to(device)
         
         processor = map(partial(preprocess_audio_file, env=env, sample_rate=cfg.preprocess.sample_rate, model=model), audio)
 

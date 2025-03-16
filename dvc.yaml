@@ -8,16 +8,16 @@ stages:
     - preprocess
     outs:
     - data/processed/
-  train:
-    cmd: python source/train.py
-    deps:
-    - source/train.py
-    - source/model.py
-    - data/processed/
-    params:
-    - train
-    outs:
-    - models/checkpoints/
+  # train:
+  #   cmd: python source/train.py
+  #   deps:
+  #   - source/train.py
+  #   - source/model.py
+  #   - data/processed/
+  #   params:
+  #   - train
+  #   outs:
+  #   - models/checkpoints/
   # export:
   #   cmd: python source/export.py
   #   deps:
