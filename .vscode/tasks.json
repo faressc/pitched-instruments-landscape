@@ -41,14 +41,14 @@
             ]
         },
         {
-            "label": "DVC stage: train",
+            "label": "DVC stage: train_vae",
             "type": "shell",
             "command": "${workspaceFolder}/venv/bin/dvc",
             "group": "none",
             "args": [
                 "repro",
                 "-s",
-                "train"
+                "train_vae"
             ],
             "options": {
                 "env": {

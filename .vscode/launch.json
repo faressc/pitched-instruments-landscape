@@ -10,7 +10,7 @@
             "request": "attach",
             "connect": {
                 "host": "localhost",
-                "port": 5680,
+                "port": 8080,
             },
             "pathMappings": [
                 {
@@ -21,7 +21,7 @@
             "preLaunchTask": "DVC stage: preprocess"
         },
         {
-            "name": "(debugpy) DVC stage: train",
+            "name": "(debugpy) DVC stage: train_vae",
             "type": "debugpy",
             "request": "attach",
             "connect": {
@@ -34,7 +34,7 @@
                     "remoteRoot": "."
                 }
             ],
-            "preLaunchTask": "DVC stage: train"
+            "preLaunchTask": "DVC stage: train_vae"
         }
     ]
 }

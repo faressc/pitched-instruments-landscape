@@ -125,6 +125,26 @@ class Params(dict):
         return self._flatten_dict(params_dict)
 
 
+def auto_device() -> torch.device:
+    """
+    Automatically get accelerated device if available, otherwise return cpu device
+
+    Returns:
+        torch.device: device to be used
+    """
+    device = None
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA device")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("Using MPS device")
+    else:
+        device = torch.device("cpu")
+        print("Using CPU device")
+    return device
+
+
 def prepare_device(request: str) -> torch.device:
     """
     Prepares the appropriate PyTorch device based on the user's request.

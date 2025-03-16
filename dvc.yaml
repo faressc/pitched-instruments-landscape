@@ -8,11 +8,11 @@ stages:
     - preprocess
     outs:
     - data/processed/
-  train:
-    cmd: python source/train.py
+  train_vae:
+    cmd: python source/train_vae.py
     deps:
-    - source/train.py
-    - source/model.py
+    - source/train_vae.py
+    - source/vae.py
     - data/processed/
     params:
     - train

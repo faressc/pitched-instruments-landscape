@@ -5,6 +5,7 @@ from dataset import FilterPitchSampler
 
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
+from functools import partial
 
 
 import torch
@@ -12,6 +13,34 @@ import torchinfo
 from utils import logs, config
 from pathlib import Path
 from model import NeuralNetwork
+
+from hydra.utils import instantiate
+
+from vae import ConditionConvVAE
+import vae
+
+from dataclasses import dataclass
+
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
+from torch.utils.data import DataLoader, random_split
+
+import math
+from transformers import EncodecModel, AutoProcessor 
+import utils.ffmpeg_helper as ffmpeg
+
+
+from dataclasses import dataclass
+
+import random
+import numpy as np
+
+import matplotlib.pyplot as plt
+import matplotlib
+
+import gc
+
 
 def train_epoch(dataloader, model, loss_fn, optimizer, device, writer, epoch):
     size = len(dataloader.dataset)
@@ -60,11 +89,42 @@ def generate_audio_examples(model, device, dataloader):
             target = torch.cat((target, y.flatten()), 0)
     return prediction, target
 
+
+def det_loss(va,ds):
+    dl = DataLoader(ds, batch_size=batch_size, shuffle=False) # same class distribution as dataset
+    losses = []
+    for dx, _, _, _ in dl:
+        dx = dx.to(device)
+        x_hat, mean, var = va.forward(dx)
+        rec_loss, kld_loss = loss_fn2(dx, x_hat, mean, var,1)
+        losses.append([rec_loss.item(), kld_loss.item()])
+    losses = np.array(losses).mean(axis=0)
+    return losses
+
+
+
+
+
+
+
+
+
+
+
 def main():
     print("##### Starting Train Stage #####")
 
+
+
+
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
+    
+
+    # Set a random seed for reproducibility across all devices. Add more devices if needed
+    config.set_random_seeds(cfg.train.random_seed)
+    # Prepare the requested device for training. Use cpu if the requested device is not available 
+    device = config.auto_device()
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
@@ -76,13 +136,61 @@ def main():
                                   drop_last=True,
                                   num_workers=cfg.train.num_workers)
     
+    cfg.train.vae.channels
+    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device)
+    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
-    for i, data in enumerate(valid_dataloader):
-        print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
-        print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
-        print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
-        break
+    optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+    calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
+    calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
+    for epoch in range(cfg.train.vae.epochs):
+        for i, data in enumerate(valid_dataloader):
+            # print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
+            # print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
+            # print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
+            
+            emb = data['embeddings'].view(-1,128,300).permute(0,2,1) / 40.
+            emb = emb.to(device)
+            emb_pred, mean, var = vae.forward(emb)
+            
+            rec_loss, reg_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, epoch)
+            
+            loss = rec_loss + reg_loss
+            loss.backward()
+            optimizer.step()
+            
+            print(epoch, rec_loss, reg_loss)
+        
+        if epoch == int(0.6*cfg.train.vae.epochs):
+            optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr*0.5, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+            print('decreased learning rate')
+        if epoch == int(0.8*cfg.train.vae.epochs):
+            optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr*0.1, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+            print('decreased learning rate')
+
+            
+        if (epoch % 10) == 0 and epoch > 0:
+            
+            eval_ind = 1    
+            
+            # save audio     
+            decoded = encodec_model.decoder((emb_pred * 40.).permute(0,2,1))
+            decoded = decoded.detach().cpu().numpy()
+            decoded = decoded[eval_ind]
+            decoded_int = np.int16(decoded * 32767)
+            ffmpeg.write_audio_file(decoded_int, "cool.wav", 24000)
+            
+            # plot original embedding and decoded embedding
+            fig, axes = plt.subplots(1, 2, figsize=(10, 5))  # 1 row, 2 columns
+            # orig embedding
+            axes[0].imshow(emb[eval_ind].cpu().detach().numpy()[:cfg.train.vae.input_crop,:])
+            axes[0].set_title("Original")
+            # generated embedding
+            axes[1].imshow(emb_pred[eval_ind].cpu().detach().numpy())
+            axes[1].set_title("Generated")
+            plt.savefig('embedding_comparison.png')
+            
     print("Gone through the dataset")
     # # Create a SummaryWriter object to write the tensorboard logs
     # tensorboard_path = logs.return_tensorboard_path()
@@ -140,8 +248,7 @@ def main():
     # output_file_path.parent.mkdir(parents=True, exist_ok=True)
     # torch.save(model.state_dict(), output_file_path)
     # print("Saved PyTorch Model State to model.pth")
-
-    print("Done with the training stage!")
+    
 
 if __name__ == "__main__":
     main()
