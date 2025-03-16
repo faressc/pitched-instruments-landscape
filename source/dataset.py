@@ -83,3 +83,29 @@ class FilterPitchSampler(Sampler):
     def __len__(self):
         return len(self.indices)
     
+class BalancedFamilySampler(Sampler):
+    def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int]):
+        self.dataset = dataset
+        self.pitch = pitch
+        self.family_indices = self._get_family_indices()
+
+    def _get_family_indices(self):
+        family_indices = {}
+        for i, data in enumerate(self.dataset):
+            if data["metadata"]["pitch"] in self.pitch:
+                family = data["metadata"]["family"]
+                if family not in family_indices:
+                    family_indices[family] = []
+                family_indices[family].append(i)
+        return family_indices
+
+    def __iter__(self):
+        min_count = min(len(indices) for indices in self.family_indices.values())
+        balanced_indices = []
+        for indices in self.family_indices.values():
+            balanced_indices.extend(np.random.choice(indices, min_count, replace=False))
+        np.random.shuffle(balanced_indices)
+        return iter(balanced_indices)
+
+    def __len__(self):
+        return min(len(indices) for indices in self.family_indices.values())
