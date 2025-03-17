@@ -65,7 +65,7 @@ class ConditionConvVAE(nn.Module):
             setattr(self, 'dec_deconv_norm{}'.format(i), nn.LayerNorm([dec_channels[i+1], deconv_sizes[i+1]]))
     
         self.relu = torch.nn.LeakyReLU(0.2)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.)
 
         self.linears = linears
         self.channels = channels
@@ -217,6 +217,6 @@ def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_repro
     
     warmup_ratio = 0.1
     training_progress = (iter/epochs)
-    reg_beta = 0.0 if training_progress < warmup_ratio else training_progress   
+    reg_beta = 0.0 if training_progress < warmup_ratio else training_progress
 
     return reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss)

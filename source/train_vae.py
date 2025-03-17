@@ -90,16 +90,16 @@ def generate_audio_examples(model, device, dataloader):
     return prediction, target
 
 
-def det_loss(va,ds):
-    dl = DataLoader(ds, batch_size=batch_size, shuffle=False) # same class distribution as dataset
-    losses = []
-    for dx, _, _, _ in dl:
-        dx = dx.to(device)
-        x_hat, mean, var = va.forward(dx)
-        rec_loss, kld_loss = loss_fn2(dx, x_hat, mean, var,1)
-        losses.append([rec_loss.item(), kld_loss.item()])
-    losses = np.array(losses).mean(axis=0)
-    return losses
+# def det_loss(va,ds):
+#     dl = DataLoader(ds, batch_size=batch_size, shuffle=False) # same class distribution as dataset
+#     losses = []
+#     for dx, _, _, _ in dl:
+#         dx = dx.to(device)
+#         x_hat, mean, var = va.forward(dx)
+#         rec_loss, kld_loss = loss_fn2(dx, x_hat, mean, var,1)
+#         losses.append([rec_loss.item(), kld_loss.item()])
+#     losses = np.array(losses).mean(axis=0)
+#     return losses
 
 
 
@@ -128,23 +128,28 @@ def main():
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
-    
-    from torch.utils.data import Sampler
-    class TestSampler(Sampler):
-        def __init__(self):
-            pass
-        def __iter__(self):
-            return iter([5])
+    # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+    class SingleElementSampler(torch.utils.data.Sampler):
+        """Sampler that returns a single element from the dataset."""
         
+        def __init__(self, dataset, index=0):
+            """
+            Args:
+                dataset: Dataset to sample from
+                index: The index of the element to sample
+            """
+            self.dataset = dataset
+            self.index = index
+            
+        def __iter__(self):
+            yield self.index
+            
         def __len__(self):
             return 1
-    
-    filter_pitch_sampler = TestSampler()
-
 
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.batch_size,
-                                  sampler=filter_pitch_sampler,
+                                  sampler=SingleElementSampler(valid_dataset, index=0),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers)
     
@@ -162,7 +167,8 @@ def main():
             # print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
             # print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
             
-            emb = data['embeddings'].view(-1,128,300).permute(0,2,1) / 40.
+            emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
+            emb = (emb + 25.) / (33.5 + 25.)
             emb = emb.to(device)
             emb_pred, mean, var = vae.forward(emb)
             
@@ -187,7 +193,7 @@ def main():
             eval_ind = 0    
             
             # save audio     
-            decoded = encodec_model.decoder((emb_pred * 40.).permute(0,2,1))
+            decoded = encodec_model.decoder((emb_pred).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded = decoded[eval_ind]
             decoded_int = np.int16(decoded * 32767)

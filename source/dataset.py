@@ -33,6 +33,32 @@ class MetaAudioDataset(Dataset):
             with self.env.begin() as txn:
                 self._keys = [key for key, _ in txn.cursor()]
         return self._keys
+    
+    @property
+    def max(self) -> float:
+        max_value = 0.
+        for key in self.keys:
+            with self.env.begin() as txn:
+                serialized = txn.get(key)
+            meta_audio_file = MetaAudioFile()
+            meta_audio_file.ParseFromString(serialized)
+
+            emb = np.frombuffer(meta_audio_file.encoder_outputs.embeddings.data, dtype=np.float32)
+            max_value = max(max_value, emb.max())
+        return max_value
+    
+    @property
+    def min(self) -> float:
+        min_value = 0.
+        for key in self.keys:
+            with self.env.begin() as txn:
+                serialized = txn.get(key)
+            meta_audio_file = MetaAudioFile()
+            meta_audio_file.ParseFromString(serialized)
+
+            emb = np.frombuffer(meta_audio_file.encoder_outputs.embeddings.data, dtype=np.float32)
+            min_value = min(min_value, emb.min())
+        return min_value
         
     def __len__(self):
         return len(self.keys)

@@ -5,18 +5,22 @@ stages:
     deps:
     - path: data/raw/
       hash: md5
-      md5: 86a11330c2e1b157fef7f5d8865ef672.dir
-      size: 1632180341
-      nfiles: 12679
+      md5: 25e54827bb56e0446b074ca8411aec84.dir
+      size: 39391890330
+      nfiles: 305982
     - path: source/preprocess.py
       hash: md5
-      md5: 30f6ffa37a4ea15ea631e2fc058eb574
-      size: 6260
+      md5: b771dfe641e640b030a66e165f8a8124
+      size: 7023
     params:
       params.yaml:
         preprocess:
+          input_path_train: data/raw/nsynth-train
+          output_path_train: data/processed/train
           input_path_valid: data/raw/nsynth-valid
           output_path_valid: data/processed/valid
+          input_path_test: data/raw/nsynth-test
+          output_path_test: data/processed/test
           model_name: facebook/encodec_24khz
           sample_rate: 24000
           max_db_size: 10
@@ -25,6 +29,6 @@ stages:
     outs:
     - path: data/processed/
       hash: md5
-      md5: e65dde6f87791f9e6115706e03c5cdf8.dir
-      size: 10737426496
-      nfiles: 2
+      md5: 2b93f9f9504952154e8019588b74e0c2.dir
+      size: 32212279488
+      nfiles: 6
