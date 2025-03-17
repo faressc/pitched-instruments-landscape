@@ -192,11 +192,12 @@ def main():
             
             eval_ind = 0    
             
-            # save audio     
-            decoded = encodec_model.decoder((emb_pred).permute(0,2,1))
+            # save audio
+            emb_pred_for_audio = emb_pred * (33.5 + 25.) - 25.
+            decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded = decoded[eval_ind]
-            decoded_int = np.int16(decoded * 32767)
+            decoded_int = np.int16(decoded * (2**15 - 1))
             ffmpeg.write_audio_file(decoded_int, "out/vae_generated.wav", 24000)
             
             # plot original embedding and decoded embedding
