@@ -140,7 +140,7 @@ def main():
             
             print("Epoch %d: Reconstruction loss: %.3f, Regularization Loss: %.3f" % (epoch, losses[0], losses[1]))
             
-            eval_ind = 0    
+            eval_ind = 0
             
             # save audio
             emb_pred_for_audio = denormalize_embedding(emb_pred)

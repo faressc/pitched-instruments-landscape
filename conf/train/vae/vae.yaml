@@ -4,8 +4,6 @@ lr: 6e-4 # learning rate
 wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
 
-weighted_reproduction: false
-
 # crop the time dimension to this length (150 -> input_crop)
 input_crop: 150
 
@@ -17,7 +15,7 @@ calculate_vae_loss:
   _target_: vae.calculate_vae_loss
   _partial_: true
   epochs: ${train.vae.epochs}
-  weighted_reproduction: false
+  weighted_reproduction: true
   loss_fn:
     _target_: torch.nn.MSELoss
     reduction: sum
