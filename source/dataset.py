@@ -97,17 +97,39 @@ class MetaAudioDataset(Dataset):
         return datapoint
     
 class FilterPitchSampler(Sampler):
-    def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int]):
+    def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int], shuffle: bool):
         self.dataset = dataset
         self.pitch = pitch
         self.indices = [i for i, data in enumerate(dataset) if data["metadata"]["pitch"] in pitch]
+        self.shuffle = shuffle
 
     def __iter__(self):
-        np.random.shuffle(self.indices)
+        if self.shuffle:
+            np.random.shuffle(self.indices)
         return iter(self.indices)
     
     def __len__(self):
         return len(self.indices)
+    
+class SingleElementSampler(Sampler):
+    """Sampler that returns a single element from the dataset."""
+    
+    def __init__(self, dataset, index=0):
+        """
+        Args:
+            dataset: Dataset to sample from
+            index: The index of the element to sample
+        """
+        self.dataset = dataset
+        self.index = index
+        
+    def __iter__(self):
+        yield self.index
+        
+    def __len__(self):
+        return 1
+
+    
     
 class BalancedFamilySampler(Sampler):
     def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int]):

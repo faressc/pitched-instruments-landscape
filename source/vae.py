@@ -94,16 +94,19 @@ class ConditionConvVAE(nn.Module):
 
     def forward(self, input, encoder_only=False):
         input = input.to(self.device)
-        mean, var = self.encode(input)
+        mean, logvar = self.encode(input)  # Assume var is actually logvar
 
-        # reparameterization trick
-        if encoder_only: return mean, var
-        epsilon = torch.randn_like(var).to(self.device)        # sampling epsilon        
-        x = mean + torch.exp(var / 2) * epsilon          # reparameterization trick
+        # Reparameterization trick
+        if encoder_only:
+            return mean, logvar
         
+        epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
+        std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
+        x = mean + std * epsilon  # Reparameterization trick
+
         x = self.decode(x)
         
-        return x, mean, var
+        return x, mean, logvar
 
 
     def encode(self, x):
@@ -154,7 +157,7 @@ class ConditionConvVAE(nn.Module):
         return x
 
     def initialize_weights(self):
-        for layer in list(self.children()):
+        for layer in self.modules():
             if isinstance(layer, nn.Conv1d):
                 nn.init.xavier_normal_(layer.weight, gain=1)
                 nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
@@ -193,9 +196,10 @@ def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_repro
     
     # neighboring loss
     min_dist = 2 / math.sqrt(batch_size) # distance between samples that is desired
-    eps = 1e-3
     
-    dists = torch.cdist(mean,mean, p=2)
+    eps = 1e-6  # Small constant to avoid division by zero
+    dists = torch.cdist(mean, mean, p=2) + torch.eye(mean.size(0), device=mean.device) * eps
+    
     dists = torch.where(dists < min_dist, dists, torch.ones_like(dists)*1000000)
     repulsion_effect = 1.0 / (dists + eps)
     

@@ -41,67 +41,23 @@ import matplotlib
 
 import gc
 
+def eval_model(model, dl, device, loss_fn, input_crop):
+    losses = []
+    for i, data in enumerate(dl):
+        emb = data['embeddings'].to(device)
+        emb = emb.view(-1,128,300).permute(0,2,1)
+        emb = normalize_embedding(emb)
+        emb_pred, mean, var = model.forward(emb)
+        rec_loss, reg_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, 1)
+        losses.append([rec_loss.item(), reg_loss.item()])
+    losses = np.array(losses).mean(axis=0)
+    return losses
 
-def train_epoch(dataloader, model, loss_fn, optimizer, device, writer, epoch):
-    size = len(dataloader.dataset)
-    num_batches = len(dataloader)
-    train_loss = 0 
-    model.train()
-    for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(device), y.to(device)
-        pred = model(X)
-        loss = loss_fn(pred, y)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        writer.add_scalar("Batch_Loss/train", loss.item(), batch + epoch * len(dataloader))
-        train_loss += loss.item()
-        if batch % 100 == 0:
-            loss_value = loss.item()
-            current = (batch + 1) * len(X)
-            print(f"loss: {loss_value:>7f}  [{current:>5d}/{size:>5d}]")
-    train_loss /=  num_batches
-    return train_loss
-    
-def test_epoch(dataloader, model, loss_fn, device, writer):
-    num_batches = len(dataloader)
-    model.eval()
-    test_loss = 0
-    with torch.no_grad():
-        for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-    test_loss /= num_batches
-    print(f"Test Error: \n Avg loss: {test_loss:>8f} \n")
-    return test_loss
+def normalize_embedding(emb):
+    return (emb + 25.) / (33.5 + 25.)
 
-def generate_audio_examples(model, device, dataloader):
-    print("Running audio prediction...")
-    prediction = torch.zeros(0).to(device)
-    target = torch.zeros(0).to(device)
-    with torch.no_grad():
-        for X, y in dataloader:
-            X = X.to(device)
-            y = y.to(device)
-            predicted_batch = model(X)
-            prediction = torch.cat((prediction, predicted_batch.flatten()), 0)
-            target = torch.cat((target, y.flatten()), 0)
-    return prediction, target
-
-
-# def det_loss(va,ds):
-#     dl = DataLoader(ds, batch_size=batch_size, shuffle=False) # same class distribution as dataset
-#     losses = []
-#     for dx, _, _, _ in dl:
-#         dx = dx.to(device)
-#         x_hat, mean, var = va.forward(dx)
-#         rec_loss, kld_loss = loss_fn2(dx, x_hat, mean, var,1)
-#         losses.append([rec_loss.item(), kld_loss.item()])
-#     losses = np.array(losses).mean(axis=0)
-#     return losses
-
-
+def denormalize_embedding(normalized_embedding):
+    return normalized_embedding * (33.5 + 25.) - 25.
 
 
 
@@ -127,31 +83,23 @@ def main():
     device = config.auto_device()
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train)
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
-    class SingleElementSampler(torch.utils.data.Sampler):
-        """Sampler that returns a single element from the dataset."""
-        
-        def __init__(self, dataset, index=0):
-            """
-            Args:
-                dataset: Dataset to sample from
-                index: The index of the element to sample
-            """
-            self.dataset = dataset
-            self.index = index
-            
-        def __iter__(self):
-            yield self.index
-            
-        def __len__(self):
-            return 1
+
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=cfg.train.batch_size,
+                                  sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
+                                  drop_last=False,
+                                  num_workers=cfg.train.num_workers)
 
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.batch_size,
-                                  sampler=SingleElementSampler(valid_dataset, index=0),
+                                  sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers)
+    
+
     
     cfg.train.vae.channels
     vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device)
@@ -162,13 +110,14 @@ def main():
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
     for epoch in range(cfg.train.vae.epochs):
-        for i, data in enumerate(valid_dataloader):
+        for i, data in enumerate(train_dataloader):
             # print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
             # print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
             # print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
+            optimizer.zero_grad()
             
             emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
-            emb = (emb + 25.) / (33.5 + 25.)
+            emb = normalize_embedding(emb)
             emb = emb.to(device)
             emb_pred, mean, var = vae.forward(emb)
             
@@ -177,23 +126,24 @@ def main():
             loss = rec_loss + reg_loss
             loss.backward()
             optimizer.step()
-            
-            print(epoch, rec_loss, reg_loss)
-        
-        if epoch == int(0.6*cfg.train.vae.epochs):
-            optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr*0.5, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
-            print('decreased learning rate')
-        if epoch == int(0.8*cfg.train.vae.epochs):
-            optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr*0.1, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+                    
+        if epoch == int(0.6*cfg.train.vae.epochs) or epoch == int(0.8*cfg.train.vae.epochs):
+            for param_group in optimizer.param_groups:
+                param_group['lr'] *= 0.5
             print('decreased learning rate')
 
             
         if (epoch % 10) == 0 and epoch > 0:
             
+            
+            losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+            
+            print("Epoch %d: Reconstruction loss: %.3f, Regularization Loss: %.3f" % (epoch, losses[0], losses[1]))
+            
             eval_ind = 0    
             
             # save audio
-            emb_pred_for_audio = emb_pred * (33.5 + 25.) - 25.
+            emb_pred_for_audio = denormalize_embedding(emb_pred)
             decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded = decoded[eval_ind]

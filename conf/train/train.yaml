@@ -1,3 +1,5 @@
+db_path_train: data/processed/train
+db_path_test: data/processed/test
 db_path_valid: data/processed/valid
 random_seed: ${RANDOM_SEED}
 batch_size: 32
