@@ -144,8 +144,9 @@ class ConditionConvVAE(nn.Module):
         for i in range(0,len(self.channels)-1):
             x = getattr(self, 'dec_deconv{}'.format(i))(x)
             x = getattr(self, 'dec_deconv_norm{}'.format(i))(x)
-            x = self.relu(x)
-            x = self.dropout(x)
+            if i < len(self.channels)-2:
+                x = self.relu(x)
+                x = self.dropout(x)
 
         x = x[:,:,:self.input_crop] # crop it to input crop for calculating loss etc
         x = x.swapaxes(1,2) # for making it batch, time, channels
