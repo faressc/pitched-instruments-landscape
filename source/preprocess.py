@@ -179,6 +179,8 @@ def main():
             hours, remainder = divmod(total_duration, 3600)
             minutes, seconds = divmod(remainder, 60)
             pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+            if total_duration > 60:
+                break
 
         print(f"Total duration of audio files in database ({output_path}): {total_duration} seconds")
 

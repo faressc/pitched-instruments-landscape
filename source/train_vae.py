@@ -128,12 +128,24 @@ def main():
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
-    filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+    
+    from torch.utils.data import Sampler
+    class TestSampler(Sampler):
+        def __init__(self):
+            pass
+        def __iter__(self):
+            return iter([5])
+        
+        def __len__(self):
+            return 1
+    
+    filter_pitch_sampler = TestSampler()
+
 
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.batch_size,
                                   sampler=filter_pitch_sampler,
-                                  drop_last=True,
+                                  drop_last=False,
                                   num_workers=cfg.train.num_workers)
     
     cfg.train.vae.channels
@@ -172,24 +184,24 @@ def main():
             
         if (epoch % 10) == 0 and epoch > 0:
             
-            eval_ind = 1    
+            eval_ind = 0    
             
             # save audio     
             decoded = encodec_model.decoder((emb_pred * 40.).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded = decoded[eval_ind]
             decoded_int = np.int16(decoded * 32767)
-            ffmpeg.write_audio_file(decoded_int, "cool.wav", 24000)
+            ffmpeg.write_audio_file(decoded_int, "out/vae_generated.wav", 24000)
             
             # plot original embedding and decoded embedding
             fig, axes = plt.subplots(1, 2, figsize=(10, 5))  # 1 row, 2 columns
             # orig embedding
-            axes[0].imshow(emb[eval_ind].cpu().detach().numpy()[:cfg.train.vae.input_crop,:])
+            axes[0].imshow(emb[eval_ind].cpu().detach().numpy()[:cfg.train.vae.input_crop,:], vmin=0.0, vmax=1.0)
             axes[0].set_title("Original")
             # generated embedding
-            axes[1].imshow(emb_pred[eval_ind].cpu().detach().numpy())
+            axes[1].imshow(emb_pred[eval_ind].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
             axes[1].set_title("Generated")
-            plt.savefig('embedding_comparison.png')
+            plt.savefig('out/embedding_comparison.png')
             
     print("Gone through the dataset")
     # # Create a SummaryWriter object to write the tensorboard logs
