@@ -28,6 +28,7 @@ NOTES.md
 
 # Ignore singularity image
 *.sif
+pitched-instruments-landscape-image_latest/
 
 # Ignore local environment vars
 local.env
