@@ -174,11 +174,12 @@ def main():
 
     input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
     output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
+    database_sizes = [cfg.preprocess.max_db_size_train, cfg.preprocess.max_db_size_valid, cfg.preprocess.max_db_size_test]
     
     # Determine device configuration
     device = config.prepare_device(cfg.device)
 
-    for input_path, output_path in zip(input_paths, output_paths):
+    for input_path, output_path, database_size in zip(input_paths, output_paths, database_sizes):
         print(f"Creating LMDB database at {output_path}")
 
         if not os.path.isdir(input_path):
@@ -196,7 +197,7 @@ def main():
         # Create a main LMDB database with the correct map size
         env = lmdb.open(
             output_path,
-            map_size=cfg.preprocess.max_db_size * 1024**3,
+            map_size=database_size * 1024**3,
             # This is needed otherwise python crashes on the hpc
             writemap=True
         )
