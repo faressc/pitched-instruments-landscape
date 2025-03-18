@@ -1,5 +1,9 @@
 import utils.debug
 
+# This is needed to avoid errors from cuda when using multiprocessing
+import multiprocessing
+multiprocessing.set_start_method('spawn', force=True)
+
 from pathlib import Path
 import os
 from typing import Sequence, Iterable, Tuple, List

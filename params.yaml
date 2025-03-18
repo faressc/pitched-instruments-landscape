@@ -2,7 +2,7 @@ RANDOM_SEED: 42
 SAMPLING_RATE: 24000
 device: cuda
 preprocess:
-  batch_size: 64
+  batch_size: 1
   ext:
   - wav
   input_path_test: data/raw/nsynth-test
