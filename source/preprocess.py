@@ -3,6 +3,7 @@ import utils.debug
 # This is needed to avoid errors from cuda when using multiprocessing
 import multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
+from multiprocessing import Manager
 
 from pathlib import Path
 import os
@@ -81,12 +82,29 @@ def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[torch.Tensor,
     embeddings = model.quantizer.decode(audio_codes)
     return encoder_outputs.audio_codes.detach().cpu().numpy(), embeddings.detach().cpu().numpy()
 
-def process_batch(batch_items, output_path, db_size, sample_rate, model_name, device):
+def get_db_size(env):
+    """Get current size of LMDB database in bytes"""
+    with env.begin() as txn:
+        stats = env.stat()
+        return stats['psize'] * (stats['leaf_pages'] + stats['branch_pages'] + stats['overflow_pages'])
+
+def check_and_resize_db(env, db_size_dict, current_usage_ratio=0.8, force=False):
+    """Check if database is nearing capacity and resize if needed"""
+    current_size_bytes = get_db_size(env)
+    max_size_bytes = db_size_dict['size'] * 1024**3
+    
+    # If database has reached the threshold (80% by default), increase size
+    if force or current_size_bytes > current_usage_ratio * max_size_bytes:
+        new_size_gb = db_size_dict['size'] * 2
+        print(f"Resizing database from {db_size_dict['size']}GB to {new_size_gb}GB")
+        db_size_dict['size'] = new_size_gb
+        env.set_mapsize(new_size_gb * 1024**3)
+    return
+
+def process_batch(batch_items, output_path, db_size_dict, sample_rate, model_name, device):
     """Process a batch of audio files in a separate process"""
 
     # Set the number of threads to 1 to avoid thread contention
-    # TODO: Find a better way to do this, maybe using torch.multiprocessing.set_start_method('spawn')?
-    # because torch still spawns many threads even with torch.set_num_threads(1) allready when importing torch
     torch.set_num_threads(1)
 
     # Setup local model for this process
@@ -95,7 +113,7 @@ def process_batch(batch_items, output_path, db_size, sample_rate, model_name, de
     # Open a local LMDB environment
     env = lmdb.open(
         output_path,
-        map_size=db_size * 1024**3,
+        map_size=db_size_dict['size'] * 1024**3,
         readonly=False,
         lock=False  # Important for concurrent access
     )
@@ -103,13 +121,17 @@ def process_batch(batch_items, output_path, db_size, sample_rate, model_name, de
     results = []
     for index, path in batch_items:
         audio_data = ffmpeg.load_audio_file(path, sample_rate=sample_rate)
-        duration = preprocess_audio_file((index, path, audio_data), env, sample_rate, model)
+        
+        # Check and resize database if needed before processing each file
+        check_and_resize_db(env, db_size_dict)
+        
+        duration = preprocess_audio_file((index, path, audio_data), env, sample_rate, model, db_size_dict)
         results.append((index, duration))
     
     env.close()
     return results
 
-def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], float, int]], env: lmdb.Environment, sample_rate: int, model: EncodecModel) -> int:
+def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], float, int]], env: lmdb.Environment, sample_rate: int, model: EncodecModel, db_size_dict) -> int:
     index, path, audio = audio
     audio_data, duration, num_channels = audio
     audio_file = MetaAudioFile.AudioFile(
@@ -159,8 +181,20 @@ def preprocess_audio_file(audio: Tuple[int, Path, Tuple[Sequence[np.ndarray], fl
     )
 
     index_str = f"{index:08}"
-    with env.begin(write=True) as txn:
-        txn.put(index_str.encode(), meta_audio_file.SerializeToString())
+    # Maximum number of resize attempts
+    max_resize_attempts = 3
+    resize_attempts = 0
+
+    while True:
+        try:
+            with env.begin(write=True) as txn:
+                txn.put(index_str.encode(), meta_audio_file.SerializeToString())
+            break  # Success, exit the loop
+        except lmdb.MapFullError or lmdb.MapResizedError:
+            resize_attempts += 1
+            if resize_attempts > max_resize_attempts:
+                raise Exception(f"Failed to write to database after {max_resize_attempts} resize attempts")
+            check_and_resize_db(env, db_size_dict, force=True)
 
     return duration
 
@@ -174,12 +208,14 @@ def main():
 
     input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
     output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
-    database_sizes = [cfg.preprocess.max_db_size_train, cfg.preprocess.max_db_size_valid, cfg.preprocess.max_db_size_test]
     
     # Determine device configuration
     device = config.prepare_device(cfg.device)
 
-    for input_path, output_path, database_size in zip(input_paths, output_paths, database_sizes):
+    # Create a manager to share state between processes
+    manager = Manager()
+
+    for input_path, output_path in zip(input_paths, output_paths):
         print(f"Creating LMDB database at {output_path}")
 
         if not os.path.isdir(input_path):
@@ -195,13 +231,17 @@ def main():
             os.makedirs(output_dir)
 
         # Create a main LMDB database with the correct map size
-        env = lmdb.open(
-            output_path,
-            map_size=database_size * 1024**3,
-            # This is needed otherwise python crashes on the hpc
-            # writemap=True
+        env = lmdb.open(output_path,
+            map_size=cfg.preprocess.initial_db_size*1024**3,
+            # Needed for hpc cluster
+            writemap=True
         )
+        
         env.close()  # Close it immediately, we'll use it in the workers
+        
+        # Create shared dictionary for database size management
+        db_size_dict = manager.dict()
+        db_size_dict['size'] = cfg.preprocess.initial_db_size
 
         print(f"Searching for audio files in {input_path}")
         # Search for audio files
@@ -220,7 +260,7 @@ def main():
         # Split files into batches for parallel processing
         batches = [indexed_files[i:i + cfg.preprocess.batch_size] for i in range(0, len(indexed_files), cfg.preprocess.batch_size)]
 
-        process_batch_partial = partial(process_batch, output_path=output_path, db_size=database_size, sample_rate=cfg.preprocess.sample_rate, model_name=cfg.preprocess.model_name, device=device)
+        process_batch_partial = partial(process_batch, output_path=output_path, sample_rate=cfg.preprocess.sample_rate, model_name=cfg.preprocess.model_name, device=device, db_size_dict=db_size_dict)
         
         print(f"Split files into {len(batches)} batches for parallel processing")
         
@@ -250,6 +290,7 @@ def main():
                 except Exception as e:
                     print(f"An error occurred: {str(e)}")
         
+        print(f"Final database size for {output_path}: {db_size_dict['size']}GB")
         print(f"Total duration of audio files in database ({output_path}): {total_duration} seconds")
         
         # Final consolidation of database if needed
