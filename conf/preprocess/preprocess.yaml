@@ -7,5 +7,7 @@ output_path_test: data/processed/test
 model_name: "facebook/encodec_24khz"
 sample_rate: ${SAMPLING_RATE}
 # Database size in GB
-max_db_size: 10
+initial_db_size: 1
 ext: ["wav"]
+num_workers: 32  # Or the number of cores you want to use
+batch_size: 8  # Adjust based on memory constraints

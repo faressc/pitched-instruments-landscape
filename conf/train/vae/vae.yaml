@@ -16,7 +16,7 @@ calculate_vae_loss:
   _target_: vae.calculate_vae_loss
   _partial_: true
   epochs: ${train.vae.epochs}
-  weighted_reproduction: false
+  weighted_reproduction: true
   loss_fn:
     _target_: torch.nn.MSELoss
     reduction: sum
