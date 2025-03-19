@@ -81,7 +81,7 @@ def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[torch.Tensor,
     embeddings = model.quantizer.decode(audio_codes)
     return encoder_outputs.audio_codes.detach().cpu().numpy(), embeddings.detach().cpu().numpy()
 
-def process_batch(batch_items, output_path, sample_rate, model_name, device):
+def process_batch(batch_items, output_path, db_size, sample_rate, model_name, device):
     """Process a batch of audio files in a separate process"""
 
     # Set the number of threads to 1 to avoid thread contention
@@ -95,6 +95,7 @@ def process_batch(batch_items, output_path, sample_rate, model_name, device):
     # Open a local LMDB environment
     env = lmdb.open(
         output_path,
+        map_size=db_size * 1024**3,
         readonly=False,
         lock=False  # Important for concurrent access
     )
@@ -219,7 +220,7 @@ def main():
         # Split files into batches for parallel processing
         batches = [indexed_files[i:i + cfg.preprocess.batch_size] for i in range(0, len(indexed_files), cfg.preprocess.batch_size)]
 
-        process_batch_partial = partial(process_batch, output_path=output_path, sample_rate=cfg.preprocess.sample_rate, model_name=cfg.preprocess.model_name, device=device)
+        process_batch_partial = partial(process_batch, output_path=output_path, db_size=database_size, sample_rate=cfg.preprocess.sample_rate, model_name=cfg.preprocess.model_name, device=device)
         
         print(f"Split files into {len(batches)} batches for parallel processing")
         
