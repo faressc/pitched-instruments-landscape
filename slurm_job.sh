@@ -11,10 +11,10 @@
 # Resources needed
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:tesla:2
 #SBATCH --mem=100GB
-#SBATCH --time=10:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --partition=gpu
 
 # Get email notifications for job status

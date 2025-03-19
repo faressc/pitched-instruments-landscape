@@ -9,5 +9,5 @@ sample_rate: ${SAMPLING_RATE}
 # Database size in GB
 initial_db_size: 1
 ext: ["wav"]
-num_workers: 8  # Or the number of cores you want to use
-batch_size: 1  # Adjust based on memory constraints
+num_workers: 32  # Or the number of cores you want to use
+batch_size: 8  # Adjust based on memory constraints
