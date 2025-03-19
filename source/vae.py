@@ -8,7 +8,7 @@ import math
 
 
 class ConditionConvVAE(nn.Module):
-    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2):
+    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2, num_notes=128):
         super(ConditionConvVAE, self).__init__()
         if padding is None:
             padding = kernel_size//2
@@ -47,9 +47,12 @@ class ConditionConvVAE(nn.Module):
 
         self.mean = nn.Linear(linears[-2], linears[-1])
         self.var = nn.Linear(linears[-2], linears[-1])
+        self.note_cls = nn.Linear(linears[-2], num_notes)
 
         dec_linears = linears[::-1]
         dec_channels = channels[::-1]
+        
+        dec_linears[0] += num_notes
 
         # decoder
         # Fully connected layers
@@ -90,23 +93,26 @@ class ConditionConvVAE(nn.Module):
         self.stride = stride
         self.output_padding = output_padding
         self.device = device
+        self.num_notes = num_notes
         self = self.to(device)
 
     def forward(self, input, encoder_only=False):
         input = input.to(self.device)
-        mean, logvar = self.encode(input)  # Assume var is actually logvar
+        mean, logvar, note_cls = self.encode(input)  # Assume var is actually logvar
 
         # Reparameterization trick
         if encoder_only:
-            return mean, logvar
+            return mean, logvar, note_cls
         
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
         x = mean + std * epsilon  # Reparameterization trick
 
+        x = torch.cat((x,note_cls), dim=1)
+
         x = self.decode(x)
         
-        return x, mean, logvar
+        return x, mean, logvar, note_cls
 
 
     def encode(self, x):
@@ -128,10 +134,12 @@ class ConditionConvVAE(nn.Module):
             x = self.relu(x)
             x = self.dropout(x)
 
+        x[:self.linears[-1]]
         mean = self.mean(x)
         var = self.var(x)
+        note_cls = self.note_cls(x)
        
-        return mean, var
+        return mean, var, note_cls
 
     def decode(self, x):
         x = x.to(self.device)
@@ -169,10 +177,12 @@ class ConditionConvVAE(nn.Module):
                 nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-
-def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_reproduction, loss_fn, batch_size):
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, iter, device, epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size):
     
     b, t, f = x.shape
+    
+    
+    cls_loss = cls_loss_fn(note_cls, gt_cls)
     
     #
     # reproduction loss
@@ -225,4 +235,4 @@ def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_repro
     rec_beta = 10.
     reg_beta = 0.0 if training_progress < warmup_ratio else training_progress * 0.01
 
-    return rec_beta * reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss)
+    return rec_beta * reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss), 0.1 * cls_loss

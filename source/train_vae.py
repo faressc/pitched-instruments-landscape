@@ -41,15 +41,25 @@ import gc
 
 def eval_model(model, dl, device, loss_fn, input_crop):
     losses = []
+    cls_pred = []
+    cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
         emb = normalize_embedding(emb)
-        emb_pred, mean, var = model.forward(emb)
-        rec_loss, reg_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, loss_fn.keywords['epochs'])
-        losses.append([rec_loss.item(), reg_loss.item()])
-    rec_loss, reg_loss = np.array(losses).mean(axis=0)
-    return rec_loss, reg_loss
+        emb_pred, mean, var, note_cls = model.forward(emb)
+        gt_cls = data['metadata']['pitch'].to(device)
+        rec_loss, reg_loss, cls_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, note_cls, gt_cls, loss_fn.keywords['epochs'])
+        losses.append([rec_loss.item(), reg_loss.item(), cls_loss.item()])
+        
+        cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
+        cls_gt.extend(gt_cls.cpu().numpy())
+        
+    b = np.array(cls_pred) == np.array(cls_gt)    
+    acc01 = np.count_nonzero(b) / len(b)
+    
+    rec_loss, reg_loss, cls_loss = np.array(losses).mean(axis=0)
+    return rec_loss, reg_loss, cls_loss, acc01
 
 def visu_model(model, dl, device, input_crop):
     num_samples = 500
@@ -62,7 +72,7 @@ def visu_model(model, dl, device, input_crop):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
         emb = normalize_embedding(emb)
-        emb_pred, mean, var = model.forward(emb)
+        emb_pred, mean, var, note_cls = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
@@ -143,7 +153,7 @@ def main():
     
 
     
-    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio)
+    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)
     encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
@@ -164,11 +174,11 @@ def main():
             emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
             emb = normalize_embedding(emb)
             emb = emb.to(device)
-            emb_pred, mean, var = vae.forward(emb)
+            emb_pred, mean, var, note_cls = vae.forward(emb)
             
-            rec_loss, reg_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, epoch)
+            rec_loss, reg_loss, cls_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, note_cls, data['metadata']['pitch'].to(device), epoch)
             
-            loss = rec_loss + reg_loss
+            loss = rec_loss + reg_loss + cls_loss
             loss.backward()
             optimizer.step()
                     
@@ -181,10 +191,13 @@ def main():
         # evaluate model
         # 
         vae.eval()
-        if (epoch % 20) == 0 and epoch > 0:
+        if (epoch % 50) == 0 and epoch > 0:
             # reconstruction error on validation dataset
+            print()
+            losses = eval_model(vae, train_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
-            print("Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f" % (epoch, losses[0], losses[1]))
+            print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
         if (epoch % 50) == 0 and epoch > 0:
             # visual evaluation on validation dataset
             visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop)
