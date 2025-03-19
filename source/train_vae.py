@@ -33,11 +33,9 @@ import utils.ffmpeg_helper as ffmpeg
 
 from dataclasses import dataclass
 
-import random
 import numpy as np
 
 import matplotlib.pyplot as plt
-import matplotlib
 
 import gc
 
@@ -48,10 +46,52 @@ def eval_model(model, dl, device, loss_fn, input_crop):
         emb = emb.view(-1,128,300).permute(0,2,1)
         emb = normalize_embedding(emb)
         emb_pred, mean, var = model.forward(emb)
-        rec_loss, reg_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, 1)
+        rec_loss, reg_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, loss_fn.keywords['epochs'])
         losses.append([rec_loss.item(), reg_loss.item()])
-    losses = np.array(losses).mean(axis=0)
-    return losses
+    rec_loss, reg_loss = np.array(losses).mean(axis=0)
+    return rec_loss, reg_loss
+
+def visu_model(model, dl, device, input_crop):
+    num_samples = 500
+    
+    embs = np.zeros((0,input_crop,128))
+    embs_pred = np.zeros((0,input_crop,128))
+    means = np.zeros((0,2))
+    families = np.zeros((0))
+    for i, data in enumerate(dl):
+        emb = data['embeddings'].to(device)
+        emb = emb.view(-1,128,300).permute(0,2,1)
+        emb = normalize_embedding(emb)
+        emb_pred, mean, var = model.forward(emb)
+        embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
+        embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
+        means = np.vstack((means, mean.cpu().detach().numpy()))
+        families = np.concat((families, data['metadata']['family'].numpy()))
+        if len(embs) > num_samples: # skip when ds gets too large
+            break
+    
+    
+    # plot original embedding and decoded embedding
+    save_index = 1
+    fig1, axes1 = plt.subplots(1, 2, figsize=(10, 5), num=1)  # 1 row, 2 columns
+    # orig embedding
+    axes1[0].imshow(embs[save_index], vmin=0.0, vmax=1.0)
+    axes1[0].set_title("Original")
+    # generated embedding
+    axes1[1].imshow(embs_pred[save_index], vmin=0.0, vmax=1.0)
+    axes1[1].set_title("Generated")
+    plt.savefig('out/embedding_comparison.png')
+    fig1.clear()
+    plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
+
+    # plot the latent as scatters
+    fig2 = plt.figure(2)
+    plt.scatter(means[:,0], means[:,1], c=families)
+    plt.savefig('out/latent_visualization.png')
+    fig1.clear()
+    plt.close(2) 
+
+
 
 def normalize_embedding(emb):
     return (emb + 25.) / (33.5 + 25.)
@@ -71,8 +111,6 @@ def main():
     print("##### Starting Train Stage #####")
 
 
-
-
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
     
@@ -88,21 +126,24 @@ def main():
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=cfg.train.batch_size,
-                                  sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
+                                  batch_size=cfg.train.vae.batch_size,
+                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
-                                  num_workers=cfg.train.num_workers)
+                                  num_workers=cfg.train.num_workers,
+                                  shuffle=True,
+                                  )
 
     valid_dataloader = DataLoader(valid_dataset,
-                                  batch_size=cfg.train.batch_size,
-                                  sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
+                                  batch_size=cfg.train.vae.batch_size,
+                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
-                                  num_workers=cfg.train.num_workers)
+                                  num_workers=cfg.train.num_workers,
+                                  shuffle=False,
+                                )
     
 
     
-    cfg.train.vae.channels
-    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device)
+    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio)
     encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
@@ -110,6 +151,10 @@ def main():
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
     for epoch in range(cfg.train.vae.epochs):
+        #
+        # training epoch
+        # 
+        vae.train()
         for i, data in enumerate(train_dataloader):
             # print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
             # print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
@@ -127,38 +172,33 @@ def main():
             loss.backward()
             optimizer.step()
                     
-        if epoch == int(0.6*cfg.train.vae.epochs) or epoch == int(0.8*cfg.train.vae.epochs):
+        if epoch == int(0.6*cfg.train.vae.epochs) or epoch == int(0.8*cfg.train.vae.epochs) or epoch == int(0.9*cfg.train.vae.epochs):
             for param_group in optimizer.param_groups:
-                param_group['lr'] *= 0.5
-            print('decreased learning rate')
-
-            
-        if (epoch % 10) == 0 and epoch > 0:
-            
-            
+                param_group['lr'] *= 0.3
+            print('decreased learning rate to %.8f' % (param_group['lr'],))
+        
+        #
+        # evaluate model
+        # 
+        vae.eval()
+        if (epoch % 20) == 0 and epoch > 0:
+            # reconstruction error on validation dataset
             losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
-            
-            print("Epoch %d: Reconstruction loss: %.3f, Regularization Loss: %.3f" % (epoch, losses[0], losses[1]))
-            
-            eval_ind = 0    
-            
+            print("Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f" % (epoch, losses[0], losses[1]))
+        if (epoch % 50) == 0 and epoch > 0:
+            # visual evaluation on validation dataset
+            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop)
             # save audio
-            emb_pred_for_audio = denormalize_embedding(emb_pred)
+            num_generate = 5
+            emb_pred_for_audio = denormalize_embedding(emb_pred[:num_generate])
             decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
-            decoded = decoded[eval_ind]
             decoded_int = np.int16(decoded * (2**15 - 1))
-            ffmpeg.write_audio_file(decoded_int, "out/vae_generated.wav", 24000)
+            for ind in range(num_generate):
+                decoded_sample = decoded_int[ind]
+                ffmpeg.write_audio_file(decoded_sample, "out/vae_generated_%d.wav" % (ind,), 24000)
             
-            # plot original embedding and decoded embedding
-            fig, axes = plt.subplots(1, 2, figsize=(10, 5))  # 1 row, 2 columns
-            # orig embedding
-            axes[0].imshow(emb[eval_ind].cpu().detach().numpy()[:cfg.train.vae.input_crop,:], vmin=0.0, vmax=1.0)
-            axes[0].set_title("Original")
-            # generated embedding
-            axes[1].imshow(emb_pred[eval_ind].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
-            axes[1].set_title("Generated")
-            plt.savefig('out/embedding_comparison.png')
+            
             
     print("Gone through the dataset")
     # # Create a SummaryWriter object to write the tensorboard logs

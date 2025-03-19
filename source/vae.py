@@ -8,7 +8,7 @@ import math
 
 
 class ConditionConvVAE(nn.Module):
-    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1):
+    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2):
         super(ConditionConvVAE, self).__init__()
         if padding is None:
             padding = kernel_size//2
@@ -65,7 +65,7 @@ class ConditionConvVAE(nn.Module):
             setattr(self, 'dec_deconv_norm{}'.format(i), nn.LayerNorm([dec_channels[i+1], deconv_sizes[i+1]]))
     
         self.relu = torch.nn.LeakyReLU(0.2)
-        self.dropout = nn.Dropout(0.)
+        self.dropout = nn.Dropout(dropout_ratio)
 
         self.linears = linears
         self.channels = channels
@@ -197,9 +197,9 @@ def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_repro
     # neighboring loss
     min_dist = 2 / math.sqrt(batch_size) # distance between samples that is desired
     
-    eps = 1e-6  # Small constant to avoid division by zero
-    dists = torch.cdist(mean, mean, p=2) + torch.eye(mean.size(0), device=mean.device) * eps
+    dists = torch.cdist(mean, mean, p=2) + torch.eye(mean.size(0), device=mean.device) * 1e-8
     
+    eps = 1e-3
     dists = torch.where(dists < min_dist, dists, torch.ones_like(dists)*1000000)
     repulsion_effect = 1.0 / (dists + eps)
     
@@ -222,6 +222,7 @@ def calculate_vae_loss(x, x_hat, mean, var, iter, device, epochs, weighted_repro
     
     warmup_ratio = 0.1
     training_progress = (iter/epochs)
-    reg_beta = 0.0 if training_progress < warmup_ratio else training_progress
+    rec_beta = 10.
+    reg_beta = 0.0 if training_progress < warmup_ratio else training_progress * 0.01
 
-    return reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss)
+    return rec_beta * reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss)
