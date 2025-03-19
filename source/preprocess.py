@@ -95,7 +95,6 @@ def process_batch(batch_items, output_path, sample_rate, model_name, device):
     # Open a local LMDB environment
     env = lmdb.open(
         output_path,
-        map_size=1 * 1024**3,  # 1GB should be enough for a batch
         readonly=False,
         lock=False  # Important for concurrent access
     )
@@ -199,7 +198,7 @@ def main():
             output_path,
             map_size=database_size * 1024**3,
             # This is needed otherwise python crashes on the hpc
-            writemap=True
+            # writemap=True
         )
         env.close()  # Close it immediately, we'll use it in the workers
 
