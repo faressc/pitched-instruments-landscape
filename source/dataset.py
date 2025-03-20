@@ -14,12 +14,12 @@ except:
 
 class MetaAudioDataset(Dataset):
 
-    def __init__(self,
-                 db_path: str):
+    def __init__(self, db_path: str, max_num_samples: int = -1):
         super().__init__()
         self._db_path = db_path
         self._env = None
         self._keys = None
+        self._max_num_samples = max_num_samples
 
     @property
     def env(self) -> lmdb.Environment:
@@ -29,9 +29,16 @@ class MetaAudioDataset(Dataset):
     
     @property
     def keys(self) -> Sequence[str]:
+        key_count = 0
         if self._keys is None:
+            self._keys = []
             with self.env.begin() as txn:
-                self._keys = [key for key, _ in txn.cursor()]
+                for key, _ in txn.cursor():
+                    self._keys.append(key)
+                    if self._max_num_samples != -1:
+                        key_count += 1
+                        if key_count >= self._max_num_samples:
+                            break
         return self._keys
     
     @property

@@ -131,6 +131,7 @@ def main():
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train)
+    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
