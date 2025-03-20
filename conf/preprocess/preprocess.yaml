@@ -11,5 +11,5 @@ initial_db_size: 1
 # This is needed for hpc cluster only
 db_writemap: false
 ext: ["wav"]
-num_workers: 20  # Or the number of cores you want to use
+num_workers: 30  # Or the number of cores you want to use
 batch_size: 8  # Adjust based on memory constraints
