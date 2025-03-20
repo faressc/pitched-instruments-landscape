@@ -1,23 +1,23 @@
 stages:
-  preprocess:
-    cmd: python source/preprocess.py
-    deps:
-    - source/preprocess.py
-    - data/raw/
-    params:
-    - preprocess
-    outs:
-    - data/processed/
-  # train_vae:
-  #   cmd: python source/train_vae.py
+  # preprocess:
+  #   cmd: python source/preprocess.py
   #   deps:
-  #   - source/train_vae.py
-  #   - source/vae.py
-  #   - data/processed/
+  #   - source/preprocess.py
+  #   - data/raw/
   #   params:
-  #   - train
+  #   - preprocess
   #   outs:
-  #   - models/checkpoints/
+  #   - data/processed/
+  train_vae:
+    cmd: python source/train_vae.py
+    deps:
+    - source/train_vae.py
+    - source/vae.py
+    - data/partial/
+    params:
+    - train
+    outs:
+    - out/
   # export:
   #   cmd: python source/export.py
   #   deps:
