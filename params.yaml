@@ -2,7 +2,7 @@ RANDOM_SEED: 42
 SAMPLING_RATE: 24000
 device: cuda
 preprocess:
-  batch_size: 2
+  batch_size: 8
   db_writemap: false
   ext:
   - wav
@@ -11,15 +11,15 @@ preprocess:
   input_path_train: data/raw/nsynth-train
   input_path_valid: data/raw/nsynth-valid
   model_name: facebook/encodec_24khz
-  num_workers: 4
+  num_workers: 20
   output_path_test: data/processed/test
   output_path_train: data/processed/train
   output_path_valid: data/processed/valid
   sample_rate: 24000
 train:
   db_path_test: data/processed/test
-  db_path_train: data/processed/train
-  db_path_valid: data/processed/valid
+  db_path_train: data/partial/train
+  db_path_valid: data/partial/valid
   num_workers: 0
   pitch:
   - 53
@@ -46,7 +46,7 @@ train:
       batch_size: 128
       cls_loss_fn:
         _target_: torch.nn.CrossEntropyLoss
-      epochs: 2000
+      epochs: 50
       loss_fn:
         _target_: torch.nn.MSELoss
         reduction: sum
@@ -57,7 +57,7 @@ train:
     - 128
     - 64
     dropout_ratio: 0.2
-    epochs: 2000
+    epochs: 50
     input_crop: 150
     linears:
     - 512
