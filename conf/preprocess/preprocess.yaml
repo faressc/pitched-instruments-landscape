@@ -1,9 +1,9 @@
 input_path_train: data/raw/nsynth-train
 output_path_train: data/processed/train
 input_path_valid: data/raw/nsynth-valid
-output_path_valid: data/partial/valid
+output_path_valid: data/processed/valid
 input_path_test: data/raw/nsynth-test
-output_path_test: data/partial/test
+output_path_test: data/processed/test
 model_name: "facebook/encodec_24khz"
 sample_rate: ${SAMPLING_RATE}
 # Database size in GB
@@ -11,5 +11,5 @@ initial_db_size: 1
 # This is needed for hpc cluster only
 db_writemap: false
 ext: ["wav"]
-num_workers: 32  # Or the number of cores you want to use
+num_workers: 20  # Or the number of cores you want to use
 batch_size: 8  # Adjust based on memory constraints
