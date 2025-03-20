@@ -7,37 +7,24 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from functools import partial
 
-
 import torch
 import torchinfo
 from utils import logs, config
-from pathlib import Path
-from model import NeuralNetwork
 
 from hydra.utils import instantiate
 
 from vae import ConditionConvVAE
 import vae
 
-from dataclasses import dataclass
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 
-import math
-from transformers import EncodecModel, AutoProcessor 
 import utils.ffmpeg_helper as ffmpeg
 
-
-from dataclasses import dataclass
-
 import numpy as np
-
 import matplotlib.pyplot as plt
-
-import gc
 
 def eval_model(model, dl, device, loss_fn, input_crop):
     losses = []
