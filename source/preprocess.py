@@ -277,13 +277,9 @@ def main():
                         hours, remainder = divmod(total_duration, 3600)
                         minutes, seconds = divmod(remainder, 60)
                         pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
-                        if total_duration > 60*60:
-                            break
                 except Exception as e:
                     print(f"An error occurred: {str(e)}")
                     print(f"Traceback: {e.__traceback__}")
-                if total_duration > 60*60:
-                    break
         
         # Close the database
         env.close()
