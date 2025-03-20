@@ -1,0 +1,6 @@
+outs:
+- md5: 7f57d37b7b048145f8358aa8f7cff189.dir
+  size: 36276484100
+  nfiles: 3
+  hash: md5
+  path: partial
