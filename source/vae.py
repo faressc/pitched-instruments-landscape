@@ -108,7 +108,14 @@ class ConditionConvVAE(nn.Module):
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
         x = mean + std * epsilon  # Reparameterization trick
 
-        x = torch.cat((x,note_cls), dim=1)
+        max_indices = torch.argmax(note_cls, dim=-1)
+
+        # Create a one-hot tensor
+        one_hot = torch.nn.functional.one_hot(max_indices, num_classes=note_cls.shape[-1]).float()
+        # Detach to prevent gradient flow
+        one_hot = one_hot.detach()
+        
+        x = torch.cat((x,one_hot), dim=1)
 
         x = self.decode(x)
         

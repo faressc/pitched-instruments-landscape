@@ -55,6 +55,9 @@ def eval_model(model, dl, device, loss_fn, input_crop):
         cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
         cls_gt.extend(gt_cls.cpu().numpy())
         
+        if i > 50: # data set can be very large
+            break
+        
     b = np.array(cls_pred) == np.array(cls_gt)    
     acc01 = np.count_nonzero(b) / len(b)
     
@@ -111,15 +114,11 @@ def denormalize_embedding(normalized_embedding):
 
 
 
-
-
-
-
-
-
 def main():
     print("##### Starting Train Stage #####")
 
+    eval_epoch = 2
+    visu_epoch = 2
 
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
@@ -191,14 +190,16 @@ def main():
         # evaluate model
         # 
         vae.eval()
-        if (epoch % 50) == 0 and epoch > 0:
+        if (epoch % eval_epoch) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
             losses = eval_model(vae, train_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
             print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
-        if (epoch % 50) == 0 and epoch > 0:
+        
+            torch.save(vae, 'models/checkpoints/vae.torch')
+        if (epoch % visu_epoch) == 0 and epoch > 0:
             # visual evaluation on validation dataset
             visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop)
             # save audio
