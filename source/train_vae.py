@@ -101,7 +101,7 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     fig2 = plt.figure(2)
     plt.scatter(means[:,0], means[:,1], c=families)
     plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
-    fig1.clear()
+    fig2.clear()
     plt.close(2) 
 
 

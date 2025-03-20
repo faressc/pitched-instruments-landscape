@@ -1,4 +1,3 @@
-out/
 # Copyright 2024 tu-studio
 # This file is licensed under the Apache License, Version 2.0.
 # See the LICENSE file in the root of this project for details.
@@ -13,8 +12,9 @@ venv
 # Ignore data files
 logs/*/*
 logs/local_rsync_output.log
-/models
 /exp_logs/*
+/out/*
+/models/*/* 
 
 # Ignore tmp copies for experiments
 /tmp
@@ -22,6 +22,8 @@ logs/local_rsync_output.log
 # Not ignore
 !logs/*/.gitkeep
 !*.dvc
+!out/.gitkeep
+!models/*/.gitkeep
 
 # Ignore personal notes
 NOTES.md
