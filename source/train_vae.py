@@ -21,6 +21,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 
+from transformers import EncodecModel
+
 import utils.ffmpeg_helper as ffmpeg
 
 import numpy as np

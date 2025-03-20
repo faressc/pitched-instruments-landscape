@@ -4,5 +4,6 @@
     "./logs",
     "./models",
     "./tmp",
+    "./pitched-instruments-landscape-image_latest",
   ]
 }
