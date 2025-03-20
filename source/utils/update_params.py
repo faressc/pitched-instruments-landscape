@@ -5,8 +5,9 @@ from omegaconf import OmegaConf
 # Initialize Hydra and load the config with all references resolved
 from hydra import initialize, compose
 
-with initialize(version_base=None, config_path="conf"):
-    # This will load the main config and all referenced configs
+with initialize(version_base=None, config_path="../../conf"):
+    # This will load the main config and all referenced config files
+    
     cfg = compose(config_name="config")
     
     # Convert to a regular dict

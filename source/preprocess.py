@@ -128,12 +128,12 @@ def process_audio_data(path: str, audio: Tuple[np.ndarray, float, int], sample_r
     audio_codes, embeddings = infer_encodec(audio_data, model)
 
     audio_codes = MetaAudioFile.EncodecOutputs.AudioCodes(
-        data=audio_codes.numpy().tobytes(),
+        data=audio_codes.tobytes(), # type: ignore
         dtype=MetaAudioFile.DType.INT64,
         shape=audio_codes.shape
     )
     embeddings = MetaAudioFile.EncodecOutputs.Embeddings(
-        data=embeddings.numpy().tobytes(),
+        data=embeddings.tobytes(), # type: ignore
         dtype=MetaAudioFile.DType.FLOAT32,
         shape=embeddings.shape
     )

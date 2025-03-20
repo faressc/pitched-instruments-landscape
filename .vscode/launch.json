@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(debugpy) Launch",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "preLaunchTask": "Update params.yaml"
+        },       
+        {
             "name": "(debugpy) DVC stage: preprocess",
             "type": "debugpy",
             "request": "attach",

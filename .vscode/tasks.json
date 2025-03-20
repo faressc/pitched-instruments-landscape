@@ -2,6 +2,19 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Update params.yaml",
+            "type": "shell",
+            "command": "${workspaceFolder}/venv/bin/python",
+            "args": [
+                "${workspaceFolder}/source/utils/update_params.py"
+            ],
+            "group": "none",
+            "isBackground": false,
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        },
+        {
             "label": "DVC stage: preprocess",
             "type": "shell",
             "command": "${workspaceFolder}/venv/bin/dvc",
