@@ -156,7 +156,7 @@ def get_db_size(env):
         stats = env.stat()
         return stats['psize'] * (stats['leaf_pages'] + stats['branch_pages'] + stats['overflow_pages'])
 
-def check_and_resize_db(env, db_size, current_usage_ratio=0.8, force=False):
+def check_and_resize_db(env, db_size, current_usage_ratio=0.8, force=False) -> int:
     """Check if database is nearing capacity and resize if needed"""
     current_size_bytes = get_db_size(env)
     max_size_bytes = db_size * 1024**3
@@ -167,9 +167,9 @@ def check_and_resize_db(env, db_size, current_usage_ratio=0.8, force=False):
         print(f"Resizing database from {db_size}GB to {new_size_gb}GB")
         db_size = new_size_gb
         env.set_mapsize(new_size_gb * 1024**3)
-    return
+    return db_size
 
-def write_to_database(index: int, meta_audio_file: ByteString, env: lmdb.Environment, db_size) -> None:
+def write_to_database(index: int, meta_audio_file: ByteString, env: lmdb.Environment, db_size) -> int:
     """Write data to LMDB database from main process"""
     index_str = f"{index:08}"
     # Maximum number of resize attempts
@@ -185,9 +185,10 @@ def write_to_database(index: int, meta_audio_file: ByteString, env: lmdb.Environ
             resize_attempts += 1
             if resize_attempts > max_resize_attempts:
                 raise Exception(f"Failed to write to database after {max_resize_attempts} resize attempts")
-            check_and_resize_db(env, db_size, force=True)
+            db_size = check_and_resize_db(env, db_size, force=True)
         except Exception as e:
             raise Exception(f"Error writing to database: {str(e)}")
+    return db_size
 
 def main():
     print("##### Starting Parallel Preprocessing Stage #####")
@@ -268,9 +269,9 @@ def main():
                     # Write processed items to database from main process
                     for index, meta_audio_file, duration in results:
                         # Check and resize database if needed before each write
-                        check_and_resize_db(env, db_size)
+                        db_size = check_and_resize_db(env, db_size)
                         # Write to database from main process
-                        write_to_database(index, meta_audio_file, env, db_size)
+                        db_size = write_to_database(index, meta_audio_file, env, db_size)
                         total_duration += duration
                         pbar.update(1)
                         hours, remainder = divmod(total_duration, 3600)
