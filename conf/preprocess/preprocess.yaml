@@ -1,9 +1,9 @@
 input_path_train: data/raw/nsynth-train
 output_path_train: data/processed/train
 input_path_valid: data/raw/nsynth-valid
-output_path_valid: data/processed/valid
+output_path_valid: data/partial/valid
 input_path_test: data/raw/nsynth-test
-output_path_test: data/processed/test
+output_path_test: data/partial/test
 model_name: "facebook/encodec_24khz"
 sample_rate: ${SAMPLING_RATE}
 # Database size in GB

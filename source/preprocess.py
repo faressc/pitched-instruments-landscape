@@ -198,8 +198,8 @@ def main():
     
     print(f"Using {cfg.preprocess.num_workers} worker processes with batch size {cfg.preprocess.batch_size}")
 
-    input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
-    output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
+    input_paths = [cfg.preprocess.input_path_valid]
+    output_paths = [cfg.preprocess.output_path_valid]
     
     # Determine device configuration
     device = config.prepare_device(cfg.device)
@@ -277,9 +277,13 @@ def main():
                         hours, remainder = divmod(total_duration, 3600)
                         minutes, seconds = divmod(remainder, 60)
                         pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+                        if total_duration > 60*60:
+                            break
                 except Exception as e:
                     print(f"An error occurred: {str(e)}")
                     print(f"Traceback: {e.__traceback__}")
+                if total_duration > 60*60:
+                    break
         
         # Close the database
         env.close()

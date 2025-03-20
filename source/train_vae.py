@@ -64,7 +64,7 @@ def eval_model(model, dl, device, loss_fn, input_crop):
     rec_loss, reg_loss, cls_loss = np.array(losses).mean(axis=0)
     return rec_loss, reg_loss, cls_loss, acc01
 
-def visu_model(model, dl, device, input_crop):
+def visu_model(model, dl, device, input_crop, name_prefix=''):
     num_samples = 500
     
     embs = np.zeros((0,input_crop,128))
@@ -93,14 +93,14 @@ def visu_model(model, dl, device, input_crop):
     # generated embedding
     axes1[1].imshow(embs_pred[save_index], vmin=0.0, vmax=1.0)
     axes1[1].set_title("Generated")
-    plt.savefig('out/embedding_comparison.png')
+    plt.savefig('out/%s_embedding_comparison.png' % (name_prefix,))
     fig1.clear()
     plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
 
     # plot the latent as scatters
     fig2 = plt.figure(2)
     plt.scatter(means[:,0], means[:,1], c=families)
-    plt.savefig('out/latent_visualization.png')
+    plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
     fig1.clear()
     plt.close(2) 
 
@@ -201,7 +201,8 @@ def main():
             torch.save(vae, 'models/checkpoints/vae.torch')
         if (epoch % visu_epoch) == 0 and epoch > 0:
             # visual evaluation on validation dataset
-            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop)
+            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train')
+            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val')
             # save audio
             num_generate = 5
             emb_pred_for_audio = denormalize_embedding(emb_pred[:num_generate])
