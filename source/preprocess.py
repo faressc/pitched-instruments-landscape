@@ -10,6 +10,7 @@ from typing import Sequence, Iterable, Tuple, List, ByteString
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import warnings
+import gc
 
 from omegaconf import OmegaConf
 import lmdb
@@ -70,16 +71,30 @@ def load_model_with_warnings_filtered(model_name, device):
         model.to(device)
     return model
 
-def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[torch.Tensor, torch.Tensor]:
+def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[np.ndarray, np.ndarray]:
     audio = audio.astype(np.float32) / (2**15 - 1)
     device = next(model.parameters()).device
     x = torch.from_numpy(audio).to(device)
     x = x.view(1, 1, -1)
-    encoder_outputs = model.encode(x, bandwidth=24.0)
-    audio_codes = encoder_outputs.audio_codes.view(1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3)) # type: ignore
-    audio_codes = rearrange(audio_codes, 'b q t -> q b t')
-    embeddings = model.quantizer.decode(audio_codes)
-    return encoder_outputs.audio_codes.detach().cpu().numpy(), embeddings.detach().cpu().numpy() # type: ignore
+    
+    with torch.no_grad():  # Use no_grad to reduce memory usage
+        encoder_outputs = model.encode(x, bandwidth=24.0)
+        audio_codes = encoder_outputs.audio_codes.view(1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3)) # type: ignore
+        audio_codes = rearrange(audio_codes, 'b q t -> q b t')
+        embeddings = model.quantizer.decode(audio_codes)
+        
+        # Convert to numpy and ensure tensors are freed
+        audio_codes_np = encoder_outputs.audio_codes.detach().cpu().numpy().copy() # type: ignore
+        embeddings_np = embeddings.detach().cpu().numpy().copy() # type: ignore
+    
+    # Clear CUDA cache if using GPU
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
+    
+    # Explicitly delete tensors
+    del x, encoder_outputs, audio_codes, embeddings
+    
+    return audio_codes_np, embeddings_np
 
 def process_batch(batch_items: List[Tuple[int, str]], sample_rate: int, model_name: str, device: torch.device = torch.device("cpu")) -> List[Tuple[int, ByteString, float]]:
     """Process a batch of audio files in a separate process"""
@@ -92,12 +107,21 @@ def process_batch(batch_items: List[Tuple[int, str]], sample_rate: int, model_na
     
     # Process all audio files in the batch and collect results
     results = []
-    for index, path in batch_items:
-        audio_data = ffmpeg.load_audio_file(path, sample_rate=sample_rate)
-        
-        # Process audio but don't write to database
-        meta_audio_file, duration = process_audio_data(path, audio_data, sample_rate, model)
-        results.append((index, meta_audio_file, duration))
+    try:
+        for index, path in batch_items:
+            audio_data = ffmpeg.load_audio_file(path, sample_rate=sample_rate)
+            
+            # Process audio but don't write to database
+            meta_audio_file, duration = process_audio_data(path, audio_data, sample_rate, model)
+            results.append((index, meta_audio_file, duration))
+            
+    finally:
+        # Clean up model resources
+        del model
+        # Final cleanup
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     
     return results
 
@@ -178,9 +202,19 @@ def write_to_database(index: int, meta_audio_file: ByteString, env: lmdb.Environ
 
     while True:
         try:
-            with env.begin(write=True) as txn:
+            # Ensure transaction is properly committed/aborted
+            txn = env.begin(write=True)
+            try:
                 txn.put(index_str.encode(), meta_audio_file)
-            break  # Success, exit the loop
+                txn.commit()
+                break  # Success, exit the loop
+            except Exception as e:
+                # Make sure to abort the transaction on error
+                txn.abort()
+                if isinstance(e, lmdb.MapFullError):
+                    raise e
+                else:
+                    raise Exception(f"Error writing to database: {str(e)}")
         except lmdb.MapFullError:
             resize_attempts += 1
             if resize_attempts > max_resize_attempts:
@@ -277,9 +311,20 @@ def main():
                         hours, remainder = divmod(total_duration, 3600)
                         minutes, seconds = divmod(remainder, 60)
                         pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+                        
+                        # Release memory for this item
+                        del meta_audio_file
+                    del results
                 except Exception as e:
                     print(f"An error occurred: {str(e)}")
                     print(f"Traceback: {e.__traceback__}")
+                
+                # Force garbage collection after each batch
+                gc.collect()
+                
+                # Clear any CUDA memory if available
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
         
         # Close the database
         env.close()
