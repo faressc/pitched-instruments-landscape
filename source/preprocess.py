@@ -198,8 +198,8 @@ def main():
     
     print(f"Using {cfg.preprocess.num_workers} worker processes with batch size {cfg.preprocess.batch_size}")
 
-    input_paths = [cfg.preprocess.input_path_valid]
-    output_paths = [cfg.preprocess.output_path_valid]
+    input_paths = [cfg.preprocess.input_path_train, cfg.preprocess.input_path_valid, cfg.preprocess.input_path_test]
+    output_paths = [cfg.preprocess.output_path_train, cfg.preprocess.output_path_valid, cfg.preprocess.output_path_test]
     
     # Determine device configuration
     device = config.prepare_device(cfg.device)
