@@ -1,0 +1,8 @@
+{
+  "exclude": [
+    "./data",
+    "./logs",
+    "./models",
+    "./tmp",
+  ]
+}
