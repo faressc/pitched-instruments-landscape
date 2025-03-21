@@ -1,5 +1,7 @@
 import utils.debug
 
+import os
+
 from dataset import MetaAudioDataset
 from dataset import FilterPitchSampler
 
@@ -102,9 +104,9 @@ def denormalize_embedding(normalized_embedding):
     return normalized_embedding * (33.5 + 25.) - 25.
 
 
-
 def main():
     print("##### Starting Train Stage #####")
+    os.makedirs("out/checkpoints", exist_ok=True)
 
     eval_epoch = 2
     visu_epoch = 2
@@ -188,7 +190,7 @@ def main():
             losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
         
-            torch.save(vae, 'models/checkpoints/vae.torch')
+            torch.save(vae, 'out/checkpoints/vae.torch')
         if (epoch % visu_epoch) == 0 and epoch > 0:
             # visual evaluation on validation dataset
             visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train')
