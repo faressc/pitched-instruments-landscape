@@ -1,6 +1,6 @@
-db_path_train: data/partial/train
+db_path_train: data/partial/train_stripped
 db_path_test: data/processed/test
-db_path_valid: data/partial/valid
+db_path_valid: data/partial/valid_stripped
 random_seed: ${RANDOM_SEED}
 num_workers: 0
 pitch: [53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64]
