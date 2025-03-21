@@ -349,7 +349,7 @@ def main():
         with ProcessPoolExecutor(max_workers=cfg.preprocess.num_workers) as executor:
             # Submit all batches for processing, but limit how many are in memory at once
             max_queued_batches = min(cfg.preprocess.num_workers * 2, len(batches))
-            active_futures = []
+            active_futures = set()
             batch_queue = list(batches)  # Create a queue of batches to process
             
             # Initial submission of batches
@@ -357,7 +357,7 @@ def main():
                 if batch_queue:
                     batch = batch_queue.pop(0)
                     future = executor.submit(process_batch_partial, batch)
-                    active_futures.append(future)
+                    active_futures.add(future)
             
             # Process results and submit new batches as they complete
             pbar = tqdm(total=len(audio_files))
@@ -375,7 +375,7 @@ def main():
                         if batch_queue:
                             batch = batch_queue.pop(0)
                             new_future = executor.submit(process_batch_partial, batch)
-                            active_futures.append(new_future)
+                            active_futures.add(new_future)
                         
                         # Write processed items to database from main process
                         for index, meta_audio_file, duration in results:
@@ -409,7 +409,7 @@ def main():
                         if batch_queue:
                             batch = batch_queue.pop(0)
                             new_future = executor.submit(process_batch_partial, batch)
-                            active_futures.append(new_future)
+                            active_futures.add(new_future)
                     
                     # Force garbage collection after each batch
                     gc.collect()
