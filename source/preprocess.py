@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 from typing import Sequence, Iterable, Tuple, List, ByteString
 from functools import partial
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed, wait, FIRST_COMPLETED
 import warnings
 import gc
 
@@ -31,17 +31,23 @@ except:
     from proto.meta_audio_file_pb2 import MetaAudioFile
 
 def search_for_audios(path_str: str, extensions: Sequence[str]) -> Iterable[Path]:
+    """
+    Search for audio files with specified extensions in a directory.
+    Uses generators to minimize memory usage.
+    """
     path = Path(path_str)
-    audios = []
     if not path.is_dir():
         raise ValueError(f"Path {path} is not a directory")
+        
+    # Use a generator expression to avoid building a list in memory
     for ext in extensions:
-        audios.append(path.rglob(f'*.{ext}'))
-        audios.append(path.rglob(f'*.{ext.upper()}'))
-    # rglob returns a generator list of lists, so we need to flatten it
-    for audio in audios:
-        for a in audio:
-            yield a
+        # Search for lowercase extension
+        for audio_path in path.rglob(f'*.{ext}'):
+            yield audio_path
+            
+        # Search for uppercase extension
+        for audio_path in path.rglob(f'*.{ext.upper()}'):
+            yield audio_path
 
 def get_metadata(path_str: str) -> dict:
     path = Path(path_str)
@@ -69,32 +75,66 @@ def load_model_with_warnings_filtered(model_name, device):
         )
         model = EncodecModel.from_pretrained(model_name)
         model.to(device)
+        # Set model to eval mode to disable gradient tracking
+        model.eval()
     return model
 
 def infer_encodec(audio: np.ndarray, model: EncodecModel) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Process audio through the EncodecModel with careful memory management.
+    Returns numpy arrays of audio codes and embeddings.
+    """
+    # Convert audio to float32 and normalize
     audio = audio.astype(np.float32) / (2**15 - 1)
     device = next(model.parameters()).device
-    x = torch.from_numpy(audio).to(device)
-    x = x.view(1, 1, -1)
     
-    with torch.no_grad():  # Use no_grad to reduce memory usage
-        encoder_outputs = model.encode(x, bandwidth=24.0)
-        audio_codes = encoder_outputs.audio_codes.view(1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3)) # type: ignore
-        audio_codes = rearrange(audio_codes, 'b q t -> q b t')
-        embeddings = model.quantizer.decode(audio_codes)
+    try:
+        # Create tensor and move to device
+        x = torch.from_numpy(audio).to(device)
+        x = x.view(1, 1, -1)
         
-        # Convert to numpy and ensure tensors are freed
-        audio_codes_np = encoder_outputs.audio_codes.detach().cpu().numpy().copy() # type: ignore
-        embeddings_np = embeddings.detach().cpu().numpy().copy() # type: ignore
-    
-    # Clear CUDA cache if using GPU
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-    
-    # Explicitly delete tensors
-    del x, encoder_outputs, audio_codes, embeddings
-    
-    return audio_codes_np, embeddings_np
+        # Free the numpy array memory
+        del audio
+        
+        with torch.no_grad():  # Use no_grad to reduce memory usage
+            # Encode in steps to manage memory better
+            encoder_outputs = model.encode(x, bandwidth=24.0)
+            
+            # Release input tensor
+            del x
+            
+            # Process audio codes
+            audio_codes = encoder_outputs.audio_codes.view(
+                1, encoder_outputs.audio_codes.size(2), encoder_outputs.audio_codes.size(3)
+            ) # type: ignore
+            audio_codes = rearrange(audio_codes, 'b q t -> q b t')
+            
+            # First extract and copy audio codes before generating embeddings
+            audio_codes_np = encoder_outputs.audio_codes.detach().cpu().numpy().copy() # type: ignore
+            
+            # Release encoder outputs after extracting codes
+            del encoder_outputs
+            
+            # Generate embeddings separately
+            embeddings = model.quantizer.decode(audio_codes)
+            embeddings_np = embeddings.detach().cpu().numpy().copy() # type: ignore
+            
+            # Release tensors immediately
+            del embeddings, audio_codes
+        
+        # Ensure arrays are contiguous to prevent memory leaks
+        audio_codes_np = np.ascontiguousarray(audio_codes_np)
+        embeddings_np = np.ascontiguousarray(embeddings_np)
+        
+        return audio_codes_np, embeddings_np
+        
+    finally:
+        # Clear CUDA cache if using GPU
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+        
+        # Force garbage collection
+        gc.collect()
 
 def process_batch(batch_items: List[Tuple[int, str]], sample_rate: int, model_name: str, device: torch.device = torch.device("cpu")) -> List[Tuple[int, ByteString, float]]:
     """Process a batch of audio files in a separate process"""
@@ -127,52 +167,69 @@ def process_batch(batch_items: List[Tuple[int, str]], sample_rate: int, model_na
 
 def process_audio_data(path: str, audio: Tuple[np.ndarray, float, int], sample_rate: int, model: EncodecModel) -> Tuple[ByteString, float]:
     """Process audio data without writing to database"""
-    audio_data, duration, num_channels = audio
-    audio_file = MetaAudioFile.AudioFile(
-        data=audio_data.tobytes(),
-        sample_rate=sample_rate,
-        dtype=MetaAudioFile.DType.INT16,
-        num_channels=num_channels,
-        num_samples=audio_data.shape[0]//num_channels
-    )
+    try:
+        audio_data, duration, num_channels = audio
+        audio_file = MetaAudioFile.AudioFile(
+            data=audio_data.tobytes(),
+            sample_rate=sample_rate,
+            dtype=MetaAudioFile.DType.INT16,
+            num_channels=num_channels,
+            num_samples=audio_data.shape[0]//num_channels
+        )
 
-    metadata_dict = get_metadata(path)
-    metadata = MetaAudioFile.Metadata(
-        note=metadata_dict["note"],
-        note_str=metadata_dict["note_str"],
-        instrument=metadata_dict["instrument"],
-        instrument_str=metadata_dict["instrument_str"],
-        pitch=metadata_dict["pitch"],
-        velocity=metadata_dict["velocity"],
-        qualities=metadata_dict["qualities"],
-        family=metadata_dict["instrument_family"],
-        source=metadata_dict["instrument_source"],
-    )
+        metadata_dict = get_metadata(path)
+        metadata = MetaAudioFile.Metadata(
+            note=metadata_dict["note"],
+            note_str=metadata_dict["note_str"],
+            instrument=metadata_dict["instrument"],
+            instrument_str=metadata_dict["instrument_str"],
+            pitch=metadata_dict["pitch"],
+            velocity=metadata_dict["velocity"],
+            qualities=metadata_dict["qualities"],
+            family=metadata_dict["instrument_family"],
+            source=metadata_dict["instrument_source"],
+        )
 
-    audio_codes, embeddings = infer_encodec(audio_data, model)
+        # Process audio with encodec model
+        audio_codes, embeddings = infer_encodec(audio_data, model)
 
-    audio_codes = MetaAudioFile.EncodecOutputs.AudioCodes(
-        data=audio_codes.tobytes(), # type: ignore
-        dtype=MetaAudioFile.DType.INT64,
-        shape=audio_codes.shape
-    )
-    embeddings = MetaAudioFile.EncodecOutputs.Embeddings(
-        data=embeddings.tobytes(), # type: ignore
-        dtype=MetaAudioFile.DType.FLOAT32,
-        shape=embeddings.shape
-    )
-    encodec_outputs = MetaAudioFile.EncodecOutputs(
-        audio_codes=audio_codes,
-        embeddings=embeddings
-    )
+        # Convert to protocol buffer format
+        audio_codes_pb = MetaAudioFile.EncodecOutputs.AudioCodes(
+            data=audio_codes.tobytes(), # type: ignore
+            dtype=MetaAudioFile.DType.INT64,
+            shape=audio_codes.shape
+        )
+        embeddings_pb = MetaAudioFile.EncodecOutputs.Embeddings(
+            data=embeddings.tobytes(), # type: ignore
+            dtype=MetaAudioFile.DType.FLOAT32,
+            shape=embeddings.shape
+        )
+        encodec_outputs = MetaAudioFile.EncodecOutputs(
+            audio_codes=audio_codes_pb,
+            embeddings=embeddings_pb
+        )
 
-    meta_audio_file = MetaAudioFile(
-        audio_file=audio_file,
-        metadata=metadata,
-        encoder_outputs=encodec_outputs
-    )
+        # Create final protocol buffer
+        meta_audio_file = MetaAudioFile(
+            audio_file=audio_file,
+            metadata=metadata,
+            encoder_outputs=encodec_outputs
+        )
 
-    return meta_audio_file.SerializeToString(), duration
+        # Serialize and return
+        serialized_data = meta_audio_file.SerializeToString()
+        
+        # Clean up large objects to free memory
+        del audio_data, audio_codes, embeddings
+        del audio_file, metadata_dict, metadata, audio_codes_pb, embeddings_pb, encodec_outputs, meta_audio_file
+        
+        return serialized_data, duration
+    except Exception as e:
+        # Clean up in case of error
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        raise e
 
 def get_db_size(env):
     """Get current size of LMDB database in bytes"""
@@ -285,46 +342,81 @@ def main():
         )
         
         total_duration = 0
+        completed_count = 0
+        batch_size = cfg.preprocess.batch_size  # For monitoring
+        
+        # Process files in smaller chunks to minimize memory consumption
         with ProcessPoolExecutor(max_workers=cfg.preprocess.num_workers) as executor:
-            # Submit all batches for processing
-            futures = []
-            for batch in batches:
-                future = executor.submit(
-                    process_batch_partial, 
-                    batch
-                )
-                futures.append(future)
+            # Submit all batches for processing, but limit how many are in memory at once
+            max_queued_batches = min(cfg.preprocess.num_workers * 2, len(batches))
+            active_futures = []
+            batch_queue = list(batches)  # Create a queue of batches to process
             
-            # Process results as they complete
+            # Initial submission of batches
+            for _ in range(min(max_queued_batches, len(batch_queue))):
+                if batch_queue:
+                    batch = batch_queue.pop(0)
+                    future = executor.submit(process_batch_partial, batch)
+                    active_futures.append(future)
+            
+            # Process results and submit new batches as they complete
             pbar = tqdm(total=len(audio_files))
-            for future in as_completed(futures):
-                try:
-                    results = future.result()
-                    # Write processed items to database from main process
-                    for index, meta_audio_file, duration in results:
-                        # Check and resize database if needed before each write
-                        db_size = check_and_resize_db(env, db_size)
-                        # Write to database from main process
-                        db_size = write_to_database(index, meta_audio_file, env, db_size)
-                        total_duration += duration
-                        pbar.update(1)
-                        hours, remainder = divmod(total_duration, 3600)
-                        minutes, seconds = divmod(remainder, 60)
-                        pbar.set_description(f"Total duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}")
+            while active_futures:
+                # Get the first completed future
+                done, active_futures = wait(active_futures, 
+                                           return_when=FIRST_COMPLETED)
+                
+                # Process completed futures
+                for future in done:
+                    try:
+                        results = future.result()
                         
-                        # Release memory for this item
-                        del meta_audio_file
-                    del results
-                except Exception as e:
-                    print(f"An error occurred: {str(e)}")
-                    print(f"Traceback: {e.__traceback__}")
-                
-                # Force garbage collection after each batch
-                gc.collect()
-                
-                # Clear any CUDA memory if available
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                        # Immediately submit a new batch if available
+                        if batch_queue:
+                            batch = batch_queue.pop(0)
+                            new_future = executor.submit(process_batch_partial, batch)
+                            active_futures.append(new_future)
+                        
+                        # Write processed items to database from main process
+                        for index, meta_audio_file, duration in results:
+                            # Check and resize database if needed before each write
+                            db_size = check_and_resize_db(env, db_size)
+                            # Write to database from main process
+                            db_size = write_to_database(index, meta_audio_file, env, db_size)
+                            total_duration += duration
+                            pbar.update(1)
+                            
+                            # Update progress description with time
+                            hours, remainder = divmod(total_duration, 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            completed_count += 1
+                            pbar.set_description(
+                                f"Processed: {completed_count}/{len(audio_files)} | "
+                                f"Duration: {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+                            )
+                            
+                            # Release memory for this item immediately
+                            del meta_audio_file
+                        
+                        # Clear results list
+                        del results
+                        
+                    except Exception as e:
+                        print(f"An error occurred: {str(e)}")
+                        print(f"Traceback: {e.__traceback__}")
+                        
+                        # Still submit new batch on error to keep workers busy
+                        if batch_queue:
+                            batch = batch_queue.pop(0)
+                            new_future = executor.submit(process_batch_partial, batch)
+                            active_futures.append(new_future)
+                    
+                    # Force garbage collection after each batch
+                    gc.collect()
+                    
+                    # Clear any CUDA memory if available
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
         
         # Close the database
         env.close()
