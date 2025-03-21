@@ -83,7 +83,7 @@ class MetaAudioDataset(Dataset):
             audio_data = audio_data.astype(np.float32) / (2**15 - 1)
             audio_data = audio_data.reshape(meta_audio_file.audio_file.num_channels, -1)
         else:
-            audio_data = None
+            audio_data = np.array([])
 
         metadata = {
             "note": meta_audio_file.metadata.note,
