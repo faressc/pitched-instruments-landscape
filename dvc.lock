@@ -1,0 +1,76 @@
+schema: '2.0'
+stages:
+  train_vae:
+    cmd: python source/train_vae.py
+    deps:
+    - path: data/partial/
+      hash: md5
+      md5: a96a08acb4a69e8e54a33835c543d3a0.dir
+      size: 36660500484
+      nfiles: 5
+    - path: source/train_vae.py
+      hash: md5
+      md5: 9404c7717d1e6c4c8b3edbed13be444d
+      size: 11955
+    - path: source/vae.py
+      hash: md5
+      md5: 221d3e6ca599b5317f0bcd67ea8a82f3
+      size: 8936
+    params:
+      params.yaml:
+        train:
+          vae:
+            epochs: 50
+            batch_size: 128
+            lr: 0.0001
+            wd: 0.05
+            betas:
+            - 0.9
+            - 0.95
+            dropout_ratio: 0.2
+            input_crop: 150
+            channels:
+            - 128
+            - 256
+            - 128
+            - 64
+            linears:
+            - 512
+            - 512
+            - 256
+            - 2
+            calculate_vae_loss:
+              _target_: vae.calculate_vae_loss
+              _partial_: true
+              epochs: 50
+              weighted_reproduction: true
+              loss_fn:
+                _target_: torch.nn.MSELoss
+                reduction: sum
+              cls_loss_fn:
+                _target_: torch.nn.CrossEntropyLoss
+              batch_size: 128
+          db_path_train: data/partial/train
+          db_path_test: data/processed/test
+          db_path_valid: data/partial/valid
+          random_seed: 42
+          num_workers: 0
+          pitch:
+          - 53
+          - 54
+          - 55
+          - 56
+          - 57
+          - 58
+          - 59
+          - 60
+          - 61
+          - 62
+          - 63
+          - 64
+    outs:
+    - path: out/
+      hash: md5
+      md5: 4c0dadeeff303e01ab4fd78d2845055b.dir
+      size: 12903601
+      nfiles: 10
