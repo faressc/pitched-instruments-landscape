@@ -12,7 +12,23 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "preLaunchTask": "Update params.yaml"
-        },       
+        },
+        {
+            "name": "(debugpy) Singularity Launch",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 8080,
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ],
+            "preLaunchTask": "Compound Task"
+        },
         {
             "name": "(debugpy) DVC stage: preprocess",
             "type": "debugpy",
