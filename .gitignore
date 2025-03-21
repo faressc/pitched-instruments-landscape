@@ -13,8 +13,6 @@ venv
 logs/*/*
 logs/local_rsync_output.log
 /exp_logs/*
-/out/*
-/models/*/* 
 
 # Ignore tmp copies for experiments
 /tmp
@@ -22,8 +20,6 @@ logs/local_rsync_output.log
 # Not ignore
 !logs/*/.gitkeep
 !*.dvc
-!out/.gitkeep
-!models/*/.gitkeep
 
 # Ignore personal notes
 NOTES.md
@@ -35,3 +31,4 @@ pitched-instruments-landscape-image_latest/
 # Ignore local environment vars
 local.env
 /exp_logs
+/out
