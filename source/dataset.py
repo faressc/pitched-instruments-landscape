@@ -14,12 +14,13 @@ except:
 
 class MetaAudioDataset(Dataset):
 
-    def __init__(self, db_path: str, max_num_samples: int = -1):
+    def __init__(self, db_path: str, max_num_samples: int = -1, has_audio: bool = True):
         super().__init__()
         self._db_path = db_path
         self._env = None
         self._keys = None
         self._max_num_samples = max_num_samples
+        self._has_audio = has_audio
 
     @property
     def env(self) -> lmdb.Environment:
@@ -77,9 +78,12 @@ class MetaAudioDataset(Dataset):
         meta_audio_file = MetaAudioFile()
         meta_audio_file.ParseFromString(serialized)
 
-        audio_data = np.frombuffer(meta_audio_file.audio_file.data, dtype=np.int16)
-        audio_data = audio_data.astype(np.float32) / (2**15 - 1)
-        audio_data = audio_data.reshape(meta_audio_file.audio_file.num_channels, -1)
+        if self._has_audio:
+            audio_data = np.frombuffer(meta_audio_file.audio_file.data, dtype=np.int16)
+            audio_data = audio_data.astype(np.float32) / (2**15 - 1)
+            audio_data = audio_data.reshape(meta_audio_file.audio_file.num_channels, -1)
+        else:
+            audio_data = None
 
         metadata = {
             "note": meta_audio_file.metadata.note,
