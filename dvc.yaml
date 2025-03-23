@@ -2,12 +2,13 @@ stages:
   preprocess:
     cmd: python source/preprocess.py
     deps:
-    - source/preprocess.py
     - data/raw/
+    - source/preprocess.py
     params:
     - preprocess
     outs:
     - data/processed/
+    frozen: true
   train_vae:
     cmd: python source/train_vae.py
     deps:

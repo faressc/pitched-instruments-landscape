@@ -15,7 +15,7 @@ preprocess:
   batch_size: 8
 train:
   vae:
-    epochs: 50
+    epochs: 6
     batch_size: 128
     lr: 0.0001
     wd: 0.05
@@ -37,7 +37,7 @@ train:
     calculate_vae_loss:
       _target_: vae.calculate_vae_loss
       _partial_: true
-      epochs: 50
+      epochs: 6
       weighted_reproduction: true
       loss_fn:
         _target_: torch.nn.MSELoss
@@ -45,9 +45,9 @@ train:
       cls_loss_fn:
         _target_: torch.nn.CrossEntropyLoss
       batch_size: 128
-  db_path_train: data/partial/train
+  db_path_train: data/processed/train
   db_path_test: data/processed/test
-  db_path_valid: data/partial/valid
+  db_path_valid: data/processed/valid
   random_seed: 42
   num_workers: 0
   pitch:
