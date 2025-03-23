@@ -55,7 +55,7 @@ stages:
       params.yaml:
         train:
           vae:
-            epochs: 50
+            epochs: 6
             batch_size: 128
             lr: 0.0001
             wd: 0.05
@@ -77,7 +77,7 @@ stages:
             calculate_vae_loss:
               _target_: vae.calculate_vae_loss
               _partial_: true
-              epochs: 50
+              epochs: 6
               weighted_reproduction: true
               loss_fn:
                 _target_: torch.nn.MSELoss
@@ -106,6 +106,6 @@ stages:
     outs:
     - path: out/
       hash: md5
-      md5: 4c0dadeeff303e01ab4fd78d2845055b.dir
-      size: 12903601
+      md5: 49c9ecec2b177b3ee96ca68a0488b5c4.dir
+      size: 12979930
       nfiles: 10

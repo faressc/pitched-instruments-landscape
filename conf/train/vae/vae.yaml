@@ -1,4 +1,4 @@
-epochs: 50
+epochs: 6
 batch_size: 128
 lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
