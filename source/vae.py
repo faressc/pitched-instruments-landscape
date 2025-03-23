@@ -239,7 +239,12 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, iter, device, epoc
     
     warmup_ratio = 0.1
     training_progress = (iter/epochs)
-    rec_beta = 10.
-    reg_beta = 0.0 if training_progress < warmup_ratio else training_progress * 0.01
+    warmup_beta = 0.0 if training_progress < warmup_ratio else training_progress * 0.01
 
-    return rec_beta * reproduction_loss, reg_beta * (0.5 * neighbor_loss + spatial_loss), 0.1 * cls_loss
+    rec_beta = 10.
+    rep_beta = 1.0
+    spa_beta = 1.0
+    cla_beta = 0.1
+    
+
+    return rec_beta * reproduction_loss, warmup_beta * (rep_beta * neighbor_loss + spa_beta * spatial_loss), cla_beta * cls_loss

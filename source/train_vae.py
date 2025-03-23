@@ -37,7 +37,6 @@ def eval_model(model, dl, device, loss_fn, input_crop):
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
-        emb = normalize_embedding(emb)
         emb_pred, mean, var, note_cls = model.forward(emb)
         gt_cls = data['metadata']['pitch'].to(device)
         rec_loss, reg_loss, cls_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, note_cls, gt_cls, loss_fn.keywords['epochs'])
@@ -65,7 +64,6 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
-        emb = normalize_embedding(emb)
         emb_pred, mean, var, note_cls = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
@@ -94,14 +92,6 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
     fig2.clear()
     plt.close(2) 
-
-
-
-def normalize_embedding(emb):
-    return (emb + 25.) / (33.5 + 25.)
-
-def denormalize_embedding(normalized_embedding):
-    return normalized_embedding * (33.5 + 25.) - 25.
 
 
 def main():
@@ -164,7 +154,6 @@ def main():
             optimizer.zero_grad()
             
             emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
-            emb = normalize_embedding(emb)
             emb = emb.to(device)
             emb_pred, mean, var, note_cls = vae.forward(emb)
             
@@ -198,7 +187,7 @@ def main():
             visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val')
             # save audio
             num_generate = 5
-            emb_pred_for_audio = denormalize_embedding(emb_pred[:num_generate])
+            emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(emb_pred[:num_generate])
             decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded_int = np.int16(decoded * (2**15 - 1))
@@ -209,7 +198,7 @@ def main():
             
             
     print("Gone through the dataset")
-    # # Create a SummaryWriter object to write the tensorboard logs
+    # # Create a i object to write the tensorboard logs
     # tensorboard_path = logs.return_tensorboard_path()
     # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
     # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)

@@ -100,12 +100,25 @@ class MetaAudioDataset(Dataset):
         embeddings = np.frombuffer(meta_audio_file.encoder_outputs.embeddings.data, dtype=np.float32).copy()
         embeddings = embeddings.reshape(meta_audio_file.encoder_outputs.embeddings.shape)
 
+        embeddings = self.normalize_embedding(embeddings)
+
         datapoint = {
             "audio_data": audio_data,
             "metadata": metadata,
             "embeddings": embeddings
         }
         return datapoint
+
+    @staticmethod
+    def normalize_embedding(emb):
+        return (emb + 25.) / (33.5 + 25.)
+    
+    @staticmethod
+    def denormalize_embedding(normalized_embedding):
+        return normalized_embedding * (33.5 + 25.) - 25.
+
+
+    
     
 class FilterPitchSampler(Sampler):
     def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int], shuffle: bool):
