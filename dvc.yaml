@@ -14,7 +14,7 @@ stages:
     deps:
     - source/train_vae.py
     - source/vae.py
-    - data/partial/
+    # - data/processed/
     params:
     - train
     outs:
