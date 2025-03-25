@@ -36,26 +36,21 @@ stages:
       size: 130354565120
       nfiles: 6
   train_vae:
-    cmd: python source/train_vae.py
+    cmd: python -u source/train_vae.py
     deps:
-    - path: data/partial/
-      hash: md5
-      md5: a96a08acb4a69e8e54a33835c543d3a0.dir
-      size: 36660500484
-      nfiles: 5
     - path: source/train_vae.py
       hash: md5
-      md5: cdef7fcc664aa48befa7a445d2b5c56e
-      size: 12135
+      md5: c1e50a82ed83f205549f802d66ee5d59
+      size: 12644
     - path: source/vae.py
       hash: md5
-      md5: 221d3e6ca599b5317f0bcd67ea8a82f3
-      size: 8936
+      md5: a5eee45ed0e14ddfed8e124071b492dd
+      size: 9026
     params:
       params.yaml:
         train:
           vae:
-            epochs: 6
+            epochs: 100
             batch_size: 128
             lr: 0.0001
             wd: 0.05
@@ -77,7 +72,7 @@ stages:
             calculate_vae_loss:
               _target_: vae.calculate_vae_loss
               _partial_: true
-              epochs: 6
+              epochs: 100
               weighted_reproduction: true
               loss_fn:
                 _target_: torch.nn.MSELoss
@@ -106,6 +101,6 @@ stages:
     outs:
     - path: out/
       hash: md5
-      md5: af1ee049f5e1b18ef4b0f11fdae596ad.dir
-      size: 13196755
+      md5: 2a27c17478a13753eb4fef6a92e2ca23.dir
+      size: 13045423
       nfiles: 10
