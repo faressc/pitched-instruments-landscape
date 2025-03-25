@@ -30,6 +30,8 @@ import utils.ffmpeg_helper as ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 
+import sys
+
 def eval_model(model, dl, device, loss_fn, input_crop):
     losses = []
     cls_pred = []
@@ -91,11 +93,13 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     plt.scatter(means[:,0], means[:,1], c=families)
     plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
     fig2.clear()
-    plt.close(2) 
-
+    plt.close(2)
 
 def main():
     print("##### Starting Train Stage #####")
+
+    sys.stdout.flush()
+
     os.makedirs("out/checkpoints", exist_ok=True)
 
     eval_epoch = 2
@@ -104,19 +108,22 @@ def main():
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
     
-
     # Set a random seed for reproducibility across all devices. Add more devices if needed
     config.set_random_seeds(cfg.train.random_seed)
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.auto_device()
 
-    print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=True)
-    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
+    print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
+    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=True)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
+    print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
+    sys.stdout.flush()
+
+    print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
@@ -125,6 +132,7 @@ def main():
                                   shuffle=True,
                                   )
 
+    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
@@ -133,16 +141,26 @@ def main():
                                   shuffle=False,
                                 )
     
-
+    sys.stdout.flush()
     
+    print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
     vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)
-    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
+    print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+    print("Instantiateing the loss functions.")
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
+    print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
+    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
+
+    # On the hpc this is needed to flush the output buffer - otherwise the output appears only after the process is finishedh
+    sys.stdout.flush()
+
+    print("######## Traininging ########")
     for epoch in range(cfg.train.vae.epochs):
+        print(f"Epoch {epoch+1}/{cfg.train.vae.epochs}")
         #
         # training epoch
         # 
@@ -162,7 +180,7 @@ def main():
             loss = rec_loss + reg_loss + cls_loss
             loss.backward()
             optimizer.step()
-                    
+             
         if epoch == int(0.6*cfg.train.vae.epochs) or epoch == int(0.8*cfg.train.vae.epochs) or epoch == int(0.9*cfg.train.vae.epochs):
             for param_group in optimizer.param_groups:
                 param_group['lr'] *= 0.3
@@ -195,65 +213,66 @@ def main():
                 decoded_sample = decoded_int[ind]
                 ffmpeg.write_audio_file(decoded_sample, "out/vae_generated_%d.wav" % (ind,), 24000)
             
+        # On the hpc this is needed to flush the output buffer - otherwise the output appears only after the process is finished
+        sys.stdout.flush()   
             
-            
-    print("Gone through the dataset")
-    # # Create a i object to write the tensorboard logs
-    # tensorboard_path = logs.return_tensorboard_path()
-    # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
-    # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
+#     print("Gone through the dataset")
+#     # # Create a i object to write the tensorboard logs
+#     # tensorboard_path = logs.return_tensorboard_path()
+#     # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
+#     # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
 
-    # # Set a random seed for reproducibility across all devices. Add more devices if needed
-    # config.set_random_seeds(random_seed)
-    # # Prepare the requested device for training. Use cpu if the requested device is not available 
-    # device = config.prepare_device(device_request)
+#     # # Set a random seed for reproducibility across all devices. Add more devices if needed
+#     # config.set_random_seeds(random_seed)
+#     # # Prepare the requested device for training. Use cpu if the requested device is not available 
+#     # device = config.prepare_device(device_request)
 
-    # # Load preprocessed data from the input file into the training and testing tensors
-    # input_file_path = Path('data/processed/data.pt')
-    # data = torch.load(input_file_path)
-    # X_ordered_training = data['X_ordered_training']
-    # y_ordered_training = data['y_ordered_training']
-    # X_ordered_testing = data['X_ordered_testing']
-    # y_ordered_testing = data['y_ordered_testing']
+#     # # Load preprocessed data from the input file into the training and testing tensors
+#     # input_file_path = Path('data/processed/data.pt')
+#     # data = torch.load(input_file_path)
+#     # X_ordered_training = data['X_ordered_training']
+#     # y_ordered_training = data['y_ordered_training']
+#     # X_ordered_testing = data['X_ordered_testing']
+#     # y_ordered_testing = data['y_ordered_testing']
 
-    # # Create the model
-    # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
-    # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
-    # print(summary)
+#     # # Create the model
+#     # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
+#     # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
+#     # print(summary)
 
-    # # Add the model graph to the tensorboard logs
-    # sample_inputs = torch.randn(1, 1, input_size) 
-    # writer.add_graph(model, sample_inputs.to(device))
+#     # # Add the model graph to the tensorboard logs
+#     # sample_inputs = torch.randn(1, 1, input_size) 
+#     # writer.add_graph(model, sample_inputs.to(device))
 
-    # # Define the loss function and the optimizer
-    # loss_fn = torch.nn.MSELoss(reduction='mean')
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+#     # # Define the loss function and the optimizer
+#     # loss_fn = torch.nn.MSELoss(reduction='mean')
+#     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    # # Create the dataloaders
-    # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
-    # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
-    # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
-    # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
+#     # # Create the dataloaders
+#     # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
+#     # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+#     # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
+#     # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
 
-    # # Training loop
-    # for t in range(epochs):
-    #     print(f"Epoch {t+1}\n-------------------------------")
-    #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
-    #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
-    #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
-    #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
-    #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
-    #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
-    #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
-    #     writer.step()  
+#     # # Training loop
+#     # for t in range(epochs):
+#     #     print(f"Epoch {t+1}\n-------------------------------")
+#     #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
+#     #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
+#     #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
+#     #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
+#     #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
+#     #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
+#     #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
+#     #     writer.step()  
 
-    # writer.close()
+#     # writer.close()
 
-    # # Save the model checkpoint
-    # output_file_path = Path('models/checkpoints/model.pth')
-    # output_file_path.parent.mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), output_file_path)
-    # print("Saved PyTorch Model State to model.pth")
+#     # # Save the model checkpoint
+#     # output_file_path = Path('models/checkpoints/model.pth')
+#     # output_file_path.parent.mkdir(parents=True, exist_ok=True)
+#     # torch.save(model.state_dict(), output_file_path)
+#     # print("Saved PyTorch Model State to model.pth")
     
 
 if __name__ == "__main__":
