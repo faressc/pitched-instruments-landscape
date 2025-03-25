@@ -19,14 +19,15 @@ class GesamTransformer(nn.Module):
         self.device = device
         
         self.input_projection_decoder = nn.Linear(self.config['input_dimension'], self.config['internal_dimension']).to(device)
-        self.input_projection_encoder = nn.Linear(1,self.config['internal_dimension']).to(device)
+        self.input_projection_encoder_timbre = nn.Linear(1,self.config['internal_dimension']).to(device)
+        self.input_projection_encoder_pos = nn.Embedding(128,self.config['internal_dimension']).to(device)
 
         self.output_projection = nn.Linear(self.config['internal_dimension'], self.config['input_dimension']).to(device)
 
         # positional encoding layer decoder
         self.input_posemb_decoder = nn.Embedding(self.config['block_size'], self.config['internal_dimension']).to(device)
         # positional enocding layer encoder
-        self.input_posemb_encoder = nn.Embedding(self.config['block_size_encoder'], self.config['internal_dimension']).to(device)
+        self.input_posemb_encoder = nn.Embedding(3, self.config['internal_dimension']).to(device)
         
         self.transformer = nn.Transformer(
                 d_model = self.config['internal_dimension'], 
@@ -48,10 +49,15 @@ class GesamTransformer(nn.Module):
         pos_emb_dec = self.input_posemb_decoder(pos)
         xdec = xdec + pos_emb_dec
         
-        xenc = self.input_projection_encoder(xenc.unsqueeze(-1))
-        pos = torch.arange(0, self.config['block_size_encoder'], dtype=torch.long).to(self.device)
+        xenc_timbre = xenc[:,:2]
+        xenc_timbre = self.input_projection_encoder_timbre(xenc_timbre.unsqueeze(-1))
+        xenc_pos = xenc[:,2:]
+        xenc_pos = self.input_projection_encoder_pos(torch.argmax(xenc_pos, dim=1)).unsqueeze(1)
+        x_concat = torch.concat((xenc_timbre, xenc_pos), dim=1)
+        
+        pos = torch.arange(0, 3, dtype=torch.long).to(self.device)
         pos_emb_enc = self.input_posemb_encoder(pos)
-        xenc = xenc + pos_emb_enc
+        xenc = x_concat + pos_emb_enc
         
         mask = self.get_tgt_mask(xdec.shape[1])
         ydec = self.transformer.forward(src=xenc,tgt=xdec,tgt_mask=mask)
@@ -60,16 +66,16 @@ class GesamTransformer(nn.Module):
         return ydec
     
     @torch.no_grad()
-    def generate(self, num_generate, condition):
+    def generate(self, num_tokens, condition):
         """
-        num_generate: output size of generated sequence (time dimension)
+        num_tokens: output size of generated sequence (time dimension)
         condition: nx2 list of tensor (n=batch size)
         """
         if not torch.is_tensor(condition):
             condition = torch.tensor(condition, dtype=torch.float32).to(device=self.device)        
         gx = torch.zeros((condition.shape[0],1,self.config['input_dimension']), dtype=torch.float32).to(self.device) # all zeros is the 'start token'
             
-        for _ in range(num_generate-1):
+        for _ in range(num_tokens-1):
             ng = self.forward(xdec=gx,xenc=condition)[:, [-1], :]
             gx = torch.cat((gx, ng), dim=1)
         return gx

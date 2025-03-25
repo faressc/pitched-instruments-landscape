@@ -83,9 +83,9 @@ def train():
     device = config.auto_device()
 
 
-    epochs = 30 # num passes through the dataset
+    epochs = 2000 # num passes through the dataset
 
-    learning_rate = 9e-5 # max learning rate
+    learning_rate = 3e-4 # max learning rate
     weight_decay = 0.05
     beta1 = 0.9
     beta2 = 0.95
@@ -100,7 +100,7 @@ def train():
 
 
     eval_num_samples = 5000
-    eval_epoch = 2
+    eval_epoch = 200
 
     
     eval_epochs = []
@@ -111,14 +111,13 @@ def train():
 
     transformer_config = dict(
         block_size = 300,
-        block_size_encoder = 130,
         input_dimension = 128,
         internal_dimension = 512,
-        feedforward_dimension = 2048,
-        n_layer_encoder = 4,
-        n_layer_decoder = 11,
+        feedforward_dimension = 1024,
+        n_layer_encoder = 6,
+        n_layer_decoder = 6,
         n_head = 8,
-        dropout = 0.25
+        dropout = 0.0
     )
 
 
@@ -137,10 +136,10 @@ def train():
     device = config.auto_device()
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=batch_size, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=batch_size, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
     train_dataloader = DataLoader(valid_dataset,
@@ -177,23 +176,23 @@ def train():
             optimizer.zero_grad()
             
             dy = data["embeddings"].to(device)
-            dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
-            
-            # dx is the transposed input vector (in time dimension) for autoregressive training
-            dx = dy[:,:-1,:]
-            dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1)
+            dy = dy.squeeze().swapaxes(1,2).detach() # shape batch, time, features
 
             vae_output = condition_model.forward(dy)
-            timbre_cond = vae_output[1]
-            pitch_cond = vae_output[3]
+            timbre_cond = vae_output[1].detach()
+            pitch_cond = vae_output[4].detach()
 
             # apply noise to condition vector for smoothing the output distribution
-            timbre_cond += torch.randn_like(timbre_cond).to(device) * 0.05
-            pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
+            # timbre_cond += torch.randn_like(timbre_cond).to(device) * torch.exp(0.5*vae_output[2])
+            # pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
 
             # concatenating timbre and pitch condition for putting into encoder of transformer
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
+            # dx is the transposed input vector (in time dimension) for autoregressive training
+            dx = dy[:,:-1,:]
+            dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1).detach()
+            
             logits = model.forward(xdec=dx, xenc=combined_cond)
             loss = F.mse_loss(logits,dy)
             
@@ -209,6 +208,7 @@ def train():
             print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], e))
 
         if e % eval_epoch == 0 and e > 0:
+            model.eval()
             print('evaluate model after epoch %d' % (e,))
 
             train_loss = eval_model(model, condition_model, train_dataloader, device=device, num_batches=eval_num_samples/batch_size)
@@ -237,16 +237,27 @@ def train():
 
 
             num_generate = 5
-            print('generate %d random samples' % (num_generate,))
-            # generate condition vector combining pitch and timbre
-            timbre = torch.rand((num_generate, 2)) * 2.0 - 1.0
-            pitches = torch.zeros((num_generate,128))
-            for i in range(num_generate):
-                ri = np.random.randint(0,127)
-                pitches[i,ri] = 1.0
-            combined_cond = torch.cat((timbre, pitches), dim=1).to(device)
+            
+            
+            # print('generate %d random samples' % (num_generate,))
+            # # generate condition vector combining pitch and timbre
+            # timbre = torch.rand((num_generate, 2)) * 2.0 - 1.0
+            # pitches = torch.zeros((num_generate,128))
+            # for i in range(num_generate):
+            #     ri = np.random.randint(21,100)
+            #     pitches[i,ri] = 1.0
+            # combined_cond = torch.cat((timbre, pitches), dim=1).to(device)
+
+
 
             generated = model.generate(300, combined_cond)
+            
+            plt.close()
+            plt.imshow(generated[0].cpu(), vmin=0.0, vmax=1.0)
+            plt.savefig('out/transformer_generated.png')          
+            plt.close()  
+            plt.imshow(dy[0].cpu(), vmin=0.0, vmax=1.0)
+            plt.savefig('out/transformer_gt.png')      
             emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(generated)
             decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()

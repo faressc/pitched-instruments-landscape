@@ -178,9 +178,9 @@ def main():
             loss.backward()
             optimizer.step()
                     
-        if epoch == int(0.6*epochs) or epoch == int(0.8*epochs) or epoch == int(0.9*epochs):
+        if epoch == int(0.5*epochs) or epoch == int(0.65*epochs) or epoch == int(0.8*epochs) or epoch == int(0.9*epochs):
             for param_group in optimizer.param_groups:
-                param_group['lr'] *= 0.3
+                param_group['lr'] *= 0.5
             print('decreased learning rate to %.8f' % (param_group['lr'],))
         
         #

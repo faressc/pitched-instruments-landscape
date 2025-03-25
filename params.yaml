@@ -36,17 +36,17 @@ train:
   - 64
   random_seed: 42
   vae:
-    batch_size: 128
+    batch_size: 1024
     betas:
     - 0.9
     - 0.95
     calculate_vae_loss:
       _partial_: true
       _target_: vae.calculate_vae_loss
-      batch_size: 128
+      batch_size: 1024
       cls_loss_fn:
         _target_: torch.nn.CrossEntropyLoss
-      epochs: 10000
+      epochs: 2000
       loss_fn:
         _target_: torch.nn.MSELoss
         reduction: sum
@@ -57,16 +57,17 @@ train:
     - 512
     - 1024
     - 2048
-    - 2048
+    - 4096
     dropout_ratio: 0.2
-    epochs: 10000
+    epochs: 2000
     input_crop: 150
     linears:
+    - 10000
+    - 8192
+    - 4096
     - 2048
     - 1024
     - 512
-    - 512
-    - 256
     - 2
     lr: 0.0001
     wd: 0.05

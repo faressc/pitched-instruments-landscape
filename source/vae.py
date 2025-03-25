@@ -100,10 +100,6 @@ class ConditionConvVAE(nn.Module):
         input = input.to(self.device)
         mean, logvar, note_cls = self.encode(input)  # Assume var is actually logvar
 
-        # Reparameterization trick
-        if encoder_only:
-            return mean, logvar, note_cls
-        
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
         x = mean + std * epsilon  # Reparameterization trick
@@ -115,11 +111,16 @@ class ConditionConvVAE(nn.Module):
         # Detach to prevent gradient flow
         one_hot = one_hot.detach()
         
+
+        # Reparameterization trick
+        if encoder_only:
+            return mean, logvar, note_cls, one_hot
+        
         x = torch.cat((x,one_hot), dim=1)
 
         x = self.decode(x)
         
-        return x, mean, logvar, note_cls
+        return x, mean, logvar, note_cls, one_hot
 
 
     def encode(self, x):
