@@ -1,4 +1,4 @@
-epochs: 100
+epochs: 10000
 batch_size: 128
 lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
@@ -9,14 +9,14 @@ dropout_ratio: 0.2
 input_crop: 150
 
 # vae with convolutional layers
-channels: [128, 256, 128, 64]
-linears: [512, 512, 256, 2]
+channels: [128, 256, 512, 1024, 2048, 2048]
+linears: [2048, 1024, 512, 512, 256, 2]
 
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss
   _partial_: true
   epochs: ${train.vae.epochs}
-  weighted_reproduction: true
+  weighted_reproduction: false
   loss_fn:
     _target_: torch.nn.MSELoss
     reduction: sum

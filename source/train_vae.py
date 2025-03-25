@@ -30,7 +30,10 @@ import utils.ffmpeg_helper as ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+@torch.no_grad()
 def eval_model(model, dl, device, loss_fn, input_crop):
+    model.eval()
     losses = []
     cls_pred = []
     cls_gt = []
@@ -54,7 +57,9 @@ def eval_model(model, dl, device, loss_fn, input_crop):
     rec_loss, reg_loss, cls_loss = np.array(losses).mean(axis=0)
     return rec_loss, reg_loss, cls_loss, acc01
 
+@torch.no_grad()
 def visu_model(model, dl, device, input_crop, name_prefix=''):
+    model.eval()
     num_samples = 500
     
     embs = np.zeros((0,input_crop,128))
@@ -97,13 +102,15 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
 def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/checkpoints", exist_ok=True)
-
-    eval_epoch = 2
-    visu_epoch = 2
-
+    
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
+
+    epochs = cfg.train.vae.epochs
     
+    eval_epoch = 100
+    visu_epoch = 100
+
 
     # Set a random seed for reproducibility across all devices. Add more devices if needed
     config.set_random_seeds(cfg.train.random_seed)
@@ -111,11 +118,12 @@ def main():
     device = config.auto_device()
 
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=True)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.vae.batch_size,
@@ -130,7 +138,7 @@ def main():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
+                                  shuffle=True,
                                 )
     
 
@@ -142,7 +150,7 @@ def main():
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
-    for epoch in range(cfg.train.vae.epochs):
+    for epoch in range(epochs):
         #
         # training epoch
         # 
@@ -163,7 +171,7 @@ def main():
             loss.backward()
             optimizer.step()
                     
-        if epoch == int(0.6*cfg.train.vae.epochs) or epoch == int(0.8*cfg.train.vae.epochs) or epoch == int(0.9*cfg.train.vae.epochs):
+        if epoch == int(0.6*epochs) or epoch == int(0.8*epochs) or epoch == int(0.9*epochs):
             for param_group in optimizer.param_groups:
                 param_group['lr'] *= 0.3
             print('decreased learning rate to %.8f' % (param_group['lr'],))

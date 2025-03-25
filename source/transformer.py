@@ -40,11 +40,9 @@ class GesamTransformer(nn.Module):
 
 
     def forward(self, xdec, xenc):
-        
         xdec[:,0,:64] = xenc[:,0].unsqueeze(1).repeat(1,64)
         xdec[:,0,64:] = xenc[:,1].unsqueeze(1).repeat(1,64)
-
-        
+  
         xdec = self.input_projection_decoder(xdec)
         pos = torch.arange(0, xdec.shape[1], dtype=torch.long).to(self.device)
         pos_emb_dec = self.input_posemb_decoder(pos)
@@ -55,38 +53,12 @@ class GesamTransformer(nn.Module):
         pos_emb_enc = self.input_posemb_encoder(pos)
         xenc = xenc + pos_emb_enc
         
-
-        
-        
-        
         mask = self.get_tgt_mask(xdec.shape[1])
         ydec = self.transformer.forward(src=xenc,tgt=xdec,tgt_mask=mask)
         ydec = self.output_projection(ydec)
         
-        
-        
         return ydec
     
-    def predict(self, cmodel, dx, dy):
-            dx = dx.to(self.device)
-            dy = dy.to(self.device)
-            
-            vae_output = cmodel.forward(dy)
-            timbre_cond = vae_output[1]
-
-            rnds = torch.randn_like(timbre_cond).to(self.device) * 0.05
-            timbre_cond = timbre_cond+rnds
-
-            pitch_cond = vae_output[3]
-            rnds = torch.randn_like(pitch_cond).to(self.device) * 0.05
-            pitch_cond = pitch_cond+rnds
-
-            combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
-
-            logits = self.forward(xdec=dx,xenc=combined_cond)
-            loss = F.mse_loss(logits,dy)
-            return logits, loss
-
     @torch.no_grad()
     def generate(self, num_generate, condition):
         """

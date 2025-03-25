@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 
 from transformers import EncodecModel
 
+import tqdm
+
 from omegaconf import OmegaConf
 from utils import logs, config
 from hydra.utils import instantiate
@@ -17,6 +19,8 @@ from hydra.utils import instantiate
 from dataset import MetaAudioDataset
 
 from transformer import GesamTransformer
+
+import utils.ffmpeg_helper as ffmpeg
 
 
 # calculate loss of model for a given dataset (executed during training)
@@ -37,6 +41,38 @@ def det_loss_testing(ds, model, condition_model):
         gen_losses.append(gen_loss)
     return np.mean(losses), np.mean(gen_losses)
 
+@torch.no_grad()
+def eval_model(model, cond_model, dl, device, num_batches):
+    losses = []
+    for b, data in enumerate(dl):
+        dy = data["embeddings"].to(device)
+        dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
+        dx = dy[:,:-1,:]
+        dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1)
+
+        vae_output = cond_model.forward(dy)
+        timbre_cond = vae_output[1]
+        pitch_cond = vae_output[3]
+
+        # concatenating timbre and pitch condition for putting into encoder of transformer
+        combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+
+        logits = model.forward(xdec=dx, xenc=combined_cond)
+        loss = F.mse_loss(logits,dx).item()
+        
+        losses.append(loss)
+        
+        # # calculate the mean abs error for a generated embedding (and not only the train loss)
+        # # takes a lot of time!
+        # gen_crop = 150
+        # generated = model.generate(gen_crop, combined_cond)
+        # gen_loss = torch.mean(torch.abs(dx[:,:gen_crop,:]-generated[:,:gen_crop,:])).item()
+
+        
+        if b > num_batches:
+            break
+        
+    return np.mean(losses).item()
 
 def train():
     cfg = OmegaConf.load("params.yaml")
@@ -47,7 +83,7 @@ def train():
     device = config.auto_device()
 
 
-    epochs = 500 # num passes through the dataset
+    epochs = 30 # num passes through the dataset
 
     learning_rate = 9e-5 # max learning rate
     weight_decay = 0.05
@@ -55,7 +91,7 @@ def train():
     beta2 = 0.95
     
     
-    batch_size = 128
+    batch_size = 64
 
     # change learning rate at several points during training
     lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
@@ -63,10 +99,14 @@ def train():
 
 
 
-    stats_every_iteration = 10
-    train_set_testing_size = 1000
+    eval_num_samples = 5000
     eval_epoch = 2
-    visu_epoch = 2
+
+    
+    eval_epochs = []
+    eval_train_losses = []
+    eval_val_losses = []
+
 
 
     transformer_config = dict(
@@ -103,7 +143,7 @@ def train():
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
-    train_dataloader = DataLoader(train_dataset,
+    train_dataloader = DataLoader(valid_dataset,
                                   batch_size=batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
@@ -116,28 +156,9 @@ def train():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
+                                  shuffle=True,
                                 )
     
-
-    
-    # do not change
-    best_val_loss = 1e9
-    best_val_loss_iter = 0
-    best_train_loss = 1e9
-    best_train_loss_iter = 0
-    best_train_gen_loss = 1e9
-    best_train_gen_loss_iter = 0
-    best_val_gen_loss = 1e9
-    best_val_gen_loss_iter = 0
-
-    iterations = [] # for plotting
-    train_losses = []
-    val_losses = []
-    train_gen_losses = []
-    val_gen_losses = []
-    change_learning_rate = learning_rate
-    actual_learning_rate = learning_rate
     
     model = GesamTransformer(transformer_config=transformer_config, device=device)
     model.to(device)
@@ -150,24 +171,36 @@ def train():
 
     for e in range(epochs):
         model.train()
-        print('start iteration %d' % e)
-        for _, data in enumerate(train_dataloader):
+        print('start epoch %d' % e)
+        for _, data in enumerate(tqdm.tqdm(train_dataloader)):
             # autoregressive loss transformer trainingi
             optimizer.zero_grad()
             
-            y = data["embeddings"].to(device)
-            y = y.squeeze().swapaxes(1,2) # shape batch, time, features
-            # x is the transposed input vector (in time dimension) for autoregressive training
-            x = y[:,:-1,:]
-            x = torch.cat((torch.zeros((x.shape[0],1,128)).to(device),x),dim=1)
+            dy = data["embeddings"].to(device)
+            dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
+            
+            # dx is the transposed input vector (in time dimension) for autoregressive training
+            dx = dy[:,:-1,:]
+            dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1)
 
-            _, loss = model.predict(condition_model, x, y)                
+            vae_output = condition_model.forward(dy)
+            timbre_cond = vae_output[1]
+            pitch_cond = vae_output[3]
+
+            # apply noise to condition vector for smoothing the output distribution
+            timbre_cond += torch.randn_like(timbre_cond).to(device) * 0.05
+            pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
+
+            # concatenating timbre and pitch condition for putting into encoder of transformer
+            combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+
+            logits = model.forward(xdec=dx, xenc=combined_cond)
+            loss = F.mse_loss(logits,dy)
+            
             loss.backward()
             optimizer.step()
-            print(loss)
+            # print(loss)
             
-        print('epoch %d done' % e)
-
         # adapt learning rate
         if e in map(lambda x: int(epochs*x), lr_change_intervals):
             # adapt learning rate with multiplier
@@ -175,6 +208,52 @@ def train():
                 param_group['lr'] *= lr_change_multiplier
             print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], e))
 
+        if e % eval_epoch == 0 and e > 0:
+            print('evaluate model after epoch %d' % (e,))
+
+            train_loss = eval_model(model, condition_model, train_dataloader, device=device, num_batches=eval_num_samples/batch_size)
+            val_loss = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=eval_num_samples/batch_size)
+            
+            print('######## train loss: %.6f (epoch %d)' % (train_loss, e))
+            print('######## val loss: %.6f (epoch %d)' % (val_loss, e))
+            print()
+
+            # if len(eval_val_losses) > 0 and val_loss < min(eval_val_losses): 
+            #     print('save new best model')
+            #     torch.save(model, 'out/checkpoints/transformer.torch')
+            
+            eval_epochs.append(e)
+            eval_train_losses.append(train_loss)
+            eval_val_losses.append(val_loss)
+            
+            
+            plt.close(0)
+            plt.figure(0)
+            plt.plot(eval_epochs, eval_train_losses, marker='o', linestyle='--', label='train')
+            plt.plot(eval_epochs, eval_val_losses, marker='o', linestyle='--', label='val')
+            plt.legend()
+            plt.title('Train and Validation Losses after epoch %d' % e)
+            plt.savefig('out/trainsformer_losses.png')
+
+
+            num_generate = 5
+            print('generate %d random samples' % (num_generate,))
+            # generate condition vector combining pitch and timbre
+            timbre = torch.rand((num_generate, 2)) * 2.0 - 1.0
+            pitches = torch.zeros((num_generate,128))
+            for i in range(num_generate):
+                ri = np.random.randint(0,127)
+                pitches[i,ri] = 1.0
+            combined_cond = torch.cat((timbre, pitches), dim=1).to(device)
+
+            generated = model.generate(300, combined_cond)
+            emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(generated)
+            decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
+            decoded = decoded.detach().cpu().numpy()
+            decoded_int = np.int16(decoded * (2**15 - 1))
+            for ind in range(num_generate):
+                decoded_sample = decoded_int[ind]
+                ffmpeg.write_audio_file(decoded_sample, "out/transformer_generated_%d.wav" % (ind,), 24000)
 
 
 if __name__ == '__main__':
