@@ -17,7 +17,7 @@
         {
             "label": "Singularity: Exec",
             "type": "shell",
-            "command": "module load singularity/4.0.2 && singularity exec --nv --bind ${workspaceFolder} pitched-instruments-landscape-image_latest python ${file}",
+            "command": "module load singularity/4.0.2 && singularity exec --nv --bind ${workspaceFolder} pitched-instruments-landscape-image_latest python -u ${file}",
             "options": {
                 "env": {
                     "DEBUG_MODE": "1"
