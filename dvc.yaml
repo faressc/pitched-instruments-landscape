@@ -1,6 +1,7 @@
 stages:
+  # python -u, for unbuffered output as hpc logs lag behind otherwise
   preprocess:
-    cmd: python source/preprocess.py
+    cmd: python -u source/preprocess.py
     deps:
     - data/raw/
     - source/preprocess.py
@@ -10,7 +11,7 @@ stages:
     - data/processed/
     frozen: true
   train_vae:
-    cmd: python source/train_vae.py
+    cmd: python -u source/train_vae.py
     deps:
     - source/train_vae.py
     - source/vae.py

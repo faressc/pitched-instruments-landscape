@@ -96,8 +96,7 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     plt.scatter(means[:,0], means[:,1], c=families)
     plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
     fig2.clear()
-    plt.close(2) 
-
+    plt.close(2)
 
 def main():
     print("##### Starting Train Stage #####")
@@ -117,14 +116,15 @@ def main():
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.auto_device()
 
-    print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
+    print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
+    print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
-
+    print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
@@ -133,6 +133,7 @@ def main():
                                   shuffle=True,
                                   )
 
+    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
@@ -141,15 +142,19 @@ def main():
                                   shuffle=True,
                                 )
     
-
-    
+    print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
     vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)
-    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
+    print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+    print("Instantiating the loss functions.")
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
+    print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
+    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
+
+    print("######## Training ########")
     for epoch in range(epochs):
         #
         # training epoch
