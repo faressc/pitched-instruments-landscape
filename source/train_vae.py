@@ -1,3 +1,6 @@
+print("Hello, World!")
+print("This is a test.")
+
 import utils.debug
 
 import os
@@ -23,12 +26,15 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 
+print("Importing EncodecModel")
 from transformers import EncodecModel
 
 import utils.ffmpeg_helper as ffmpeg
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+import warnings
 
 def eval_model(model, dl, device, loss_fn, input_crop):
     losses = []
@@ -91,7 +97,25 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     plt.scatter(means[:,0], means[:,1], c=families)
     plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
     fig2.clear()
-    plt.close(2) 
+    plt.close(2)
+
+def load_model_with_warnings_filtered(model_name, device):
+    """
+    Load the EncodecModel with warnings about tensor construction filtered out.
+    """
+    # Filter out specific PyTorch tensor construction warnings from transformers
+    with warnings.catch_warnings():
+        # Suppress warnings in this process
+        warnings.filterwarnings(
+            "ignore", 
+            category=UserWarning,
+            message=".*To copy construct from a tensor.*"
+        )
+        model = EncodecModel.from_pretrained(model_name)
+        model.to(device)
+        # Set model to eval mode to disable gradient tracking
+        model.eval()
+    return model
 
 
 def main():
@@ -110,13 +134,15 @@ def main():
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.auto_device()
 
-    print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=True)
-    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
-    # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
+    print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
+#     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, has_audio=True)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
+#     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
+    print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, has_audio=False)
-    # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+#     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
+    print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
@@ -125,6 +151,7 @@ def main():
                                   shuffle=True,
                                   )
 
+    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
@@ -133,16 +160,24 @@ def main():
                                   shuffle=False,
                                 )
     
-
-    
+    print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
     vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)
-    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
+    print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
+    print("Instantiateing the loss functions.")
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
+    # print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
+    # print("Loading EncodecModel with warnings filtered")
+    # encodec_model = load_model_with_warnings_filtered(cfg.preprocess.model_name, device)
+    # print("Loading EncodecModel without warnings filtered")
+    # encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name)
+
+    print("######## Traininging ########")
     for epoch in range(cfg.train.vae.epochs):
+        print(f"Epoch {epoch+1}/{cfg.train.vae.epochs}")
         #
         # training epoch
         # 
@@ -168,92 +203,92 @@ def main():
                 param_group['lr'] *= 0.3
             print('decreased learning rate to %.8f' % (param_group['lr'],))
         
-        #
-        # evaluate model
-        # 
-        vae.eval()
-        if (epoch % eval_epoch) == 0 and epoch > 0:
-            # reconstruction error on validation dataset
-            print()
-            losses = eval_model(vae, train_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
-            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
-            losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
-            print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
+    #     #
+    #     # evaluate model
+    #     # 
+    #     vae.eval()
+    #     if (epoch % eval_epoch) == 0 and epoch > 0:
+    #         # reconstruction error on validation dataset
+    #         print()
+    #         losses = eval_model(vae, train_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+    #         print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
+    #         losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+    #         print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
         
-            torch.save(vae, 'out/checkpoints/vae.torch')
-        if (epoch % visu_epoch) == 0 and epoch > 0:
-            # visual evaluation on validation dataset
-            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train')
-            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val')
-            # save audio
-            num_generate = 5
-            emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(emb_pred[:num_generate])
-            decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
-            decoded = decoded.detach().cpu().numpy()
-            decoded_int = np.int16(decoded * (2**15 - 1))
-            for ind in range(num_generate):
-                decoded_sample = decoded_int[ind]
-                ffmpeg.write_audio_file(decoded_sample, "out/vae_generated_%d.wav" % (ind,), 24000)
+    #         torch.save(vae, 'out/checkpoints/vae.torch')
+    #     if (epoch % visu_epoch) == 0 and epoch > 0:
+    #         # visual evaluation on validation dataset
+    #         visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train')
+    #         visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val')
+    #         # save audio
+    #         num_generate = 5
+    #         emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(emb_pred[:num_generate])
+    #         decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
+    #         decoded = decoded.detach().cpu().numpy()
+    #         decoded_int = np.int16(decoded * (2**15 - 1))
+    #         for ind in range(num_generate):
+    #             decoded_sample = decoded_int[ind]
+    #             ffmpeg.write_audio_file(decoded_sample, "out/vae_generated_%d.wav" % (ind,), 24000)
             
             
             
-    print("Gone through the dataset")
-    # # Create a i object to write the tensorboard logs
-    # tensorboard_path = logs.return_tensorboard_path()
-    # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
-    # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
+#     print("Gone through the dataset")
+#     # # Create a i object to write the tensorboard logs
+#     # tensorboard_path = logs.return_tensorboard_path()
+#     # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
+#     # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
 
-    # # Set a random seed for reproducibility across all devices. Add more devices if needed
-    # config.set_random_seeds(random_seed)
-    # # Prepare the requested device for training. Use cpu if the requested device is not available 
-    # device = config.prepare_device(device_request)
+#     # # Set a random seed for reproducibility across all devices. Add more devices if needed
+#     # config.set_random_seeds(random_seed)
+#     # # Prepare the requested device for training. Use cpu if the requested device is not available 
+#     # device = config.prepare_device(device_request)
 
-    # # Load preprocessed data from the input file into the training and testing tensors
-    # input_file_path = Path('data/processed/data.pt')
-    # data = torch.load(input_file_path)
-    # X_ordered_training = data['X_ordered_training']
-    # y_ordered_training = data['y_ordered_training']
-    # X_ordered_testing = data['X_ordered_testing']
-    # y_ordered_testing = data['y_ordered_testing']
+#     # # Load preprocessed data from the input file into the training and testing tensors
+#     # input_file_path = Path('data/processed/data.pt')
+#     # data = torch.load(input_file_path)
+#     # X_ordered_training = data['X_ordered_training']
+#     # y_ordered_training = data['y_ordered_training']
+#     # X_ordered_testing = data['X_ordered_testing']
+#     # y_ordered_testing = data['y_ordered_testing']
 
-    # # Create the model
-    # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
-    # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
-    # print(summary)
+#     # # Create the model
+#     # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
+#     # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
+#     # print(summary)
 
-    # # Add the model graph to the tensorboard logs
-    # sample_inputs = torch.randn(1, 1, input_size) 
-    # writer.add_graph(model, sample_inputs.to(device))
+#     # # Add the model graph to the tensorboard logs
+#     # sample_inputs = torch.randn(1, 1, input_size) 
+#     # writer.add_graph(model, sample_inputs.to(device))
 
-    # # Define the loss function and the optimizer
-    # loss_fn = torch.nn.MSELoss(reduction='mean')
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+#     # # Define the loss function and the optimizer
+#     # loss_fn = torch.nn.MSELoss(reduction='mean')
+#     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    # # Create the dataloaders
-    # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
-    # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
-    # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
-    # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
+#     # # Create the dataloaders
+#     # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
+#     # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+#     # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
+#     # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
 
-    # # Training loop
-    # for t in range(epochs):
-    #     print(f"Epoch {t+1}\n-------------------------------")
-    #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
-    #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
-    #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
-    #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
-    #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
-    #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
-    #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
-    #     writer.step()  
+#     # # Training loop
+#     # for t in range(epochs):
+#     #     print(f"Epoch {t+1}\n-------------------------------")
+#     #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
+#     #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
+#     #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
+#     #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
+#     #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
+#     #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
+#     #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
+#     #     writer.step()  
 
-    # writer.close()
+#     # writer.close()
 
-    # # Save the model checkpoint
-    # output_file_path = Path('models/checkpoints/model.pth')
-    # output_file_path.parent.mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), output_file_path)
-    # print("Saved PyTorch Model State to model.pth")
+#     # # Save the model checkpoint
+#     # output_file_path = Path('models/checkpoints/model.pth')
+#     # output_file_path.parent.mkdir(parents=True, exist_ok=True)
+#     # torch.save(model.state_dict(), output_file_path)
+#     # print("Saved PyTorch Model State to model.pth")
     
 
 if __name__ == "__main__":
