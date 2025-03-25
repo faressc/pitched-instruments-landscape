@@ -107,9 +107,8 @@ def main():
 
     epochs = cfg.train.vae.epochs
     
-    eval_epoch = 100
-    visu_epoch = 100
-
+    eval_epoch = 5
+    visu_epoch = 5
 
     # Set a random seed for reproducibility across all devices. Add more devices if needed
     config.set_random_seeds(cfg.train.random_seed)
@@ -117,12 +116,15 @@ def main():
     device = config.auto_device()
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=200, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=-1, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+
+    print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
+
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,

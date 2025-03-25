@@ -1,5 +1,5 @@
-epochs: 10000
-batch_size: 128
+epochs: 200
+batch_size: 256
 lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
@@ -9,8 +9,8 @@ dropout_ratio: 0.2
 input_crop: 150
 
 # vae with convolutional layers
-channels: [128, 256, 512, 1024, 2048, 2048]
-linears: [2048, 1024, 512, 512, 256, 2]
+channels: [128, 256, 512, 1024, 2048, 2048, 4096]
+linears: [4096, 2048, 2048, 1024, 512, 512, 2]
 
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss
