@@ -30,6 +30,22 @@
             "preLaunchTask": "Compound Task"
         },
         {
+            "name": "(debugpy) Debug exp_workflow",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 8080,
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ],
+            "preLaunchTask": "Run exp_workflow",
+        },
+        {
             "name": "(debugpy) DVC stage: preprocess",
             "type": "debugpy",
             "request": "attach",
