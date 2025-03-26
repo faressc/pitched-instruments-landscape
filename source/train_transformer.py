@@ -47,27 +47,28 @@ def eval_model(model, cond_model, dl, device, num_batches):
     for b, data in enumerate(dl):
         dy = data["embeddings"].to(device)
         dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
-        dx = dy[:,:-1,:]
-        dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1)
 
         vae_output = cond_model.forward(dy)
-        timbre_cond = vae_output[1]
-        pitch_cond = vae_output[3]
+        timbre_cond = vae_output[1].detach()
+        pitch_cond = vae_output[4].detach()
 
         # concatenating timbre and pitch condition for putting into encoder of transformer
         combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+        dx = dy[:,:-1,:]
+        dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1).detach()
 
         logits = model.forward(xdec=dx, xenc=combined_cond)
         loss = F.mse_loss(logits,dx).item()
-        
+
         losses.append(loss)
         
-        # # calculate the mean abs error for a generated embedding (and not only the train loss)
-        # # takes a lot of time!
-        # gen_crop = 150
-        # generated = model.generate(gen_crop, combined_cond)
-        # gen_loss = torch.mean(torch.abs(dx[:,:gen_crop,:]-generated[:,:gen_crop,:])).item()
+        # calculate the mean abs error for a generated embedding (and not only the train loss)
+        # takes a lot of time!
+        gen_crop = 150
+        generated = model.generate(gen_crop, combined_cond)
+        gen_loss = F.mse_loss(dx[:,:gen_crop,:], generated[:,:gen_crop,:]).item()
 
+        # losses.append(gen_loss)
         
         if b > num_batches:
             break
@@ -75,6 +76,10 @@ def eval_model(model, cond_model, dl, device, num_batches):
     return np.mean(losses).item()
 
 def train():
+    # Load data
+    print("##### Starting Train Stage #####")
+    os.makedirs("out/checkpoints", exist_ok=True)
+
     cfg = OmegaConf.load("params.yaml")
     
     # Set a random seed for reproducibility across all devices. Add more devices if needed
@@ -85,7 +90,7 @@ def train():
 
     epochs = 2000 # num passes through the dataset
 
-    learning_rate = 3e-4 # max learning rate
+    learning_rate = 1e-4 # max learning rate
     weight_decay = 0.05
     beta1 = 0.9
     beta2 = 0.95
@@ -113,41 +118,26 @@ def train():
         block_size = 300,
         input_dimension = 128,
         internal_dimension = 512,
-        feedforward_dimension = 1024,
-        n_layer_encoder = 6,
-        n_layer_decoder = 6,
+        feedforward_dimension = 2048,
+        n_layer_encoder = 8,
+        n_layer_decoder = 11,
         n_head = 8,
         dropout = 0.0
     )
 
-
-    # Load data
-    print("##### Starting Train Stage #####")
-    os.makedirs("out/checkpoints", exist_ok=True)
-
-
-    # Load the parameters from the dictionary into variables
-    cfg = OmegaConf.load("params.yaml")
-    
-
-    # Set a random seed for reproducibility across all devices. Add more devices if needed
-    config.set_random_seeds(cfg.train.random_seed)
-    # Prepare the requested device for training. Use cpu if the requested device is not available 
-    device = config.auto_device()
-
     print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=batch_size, has_audio=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=2, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=batch_size, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=2, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
-    train_dataloader = DataLoader(valid_dataset,
+    train_dataloader = DataLoader(train_dataset,
                                   batch_size=batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
+                                  shuffle=False,
                                   )
 
     valid_dataloader = DataLoader(valid_dataset,
@@ -155,7 +145,7 @@ def train():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
+                                  shuffle=False,
                                 )
     
     
@@ -168,15 +158,17 @@ def train():
     condition_model = torch.load('out/checkpoints/vae.torch', weights_only=False).to(device)
     condition_model.eval()
 
+    combined_cond_for_generation = torch.Tensor()
     for e in range(epochs):
         model.train()
         print('start epoch %d' % e)
+
         for _, data in enumerate(tqdm.tqdm(train_dataloader)):
             # autoregressive loss transformer trainingi
             optimizer.zero_grad()
             
             dy = data["embeddings"].to(device)
-            dy = dy.squeeze().swapaxes(1,2).detach() # shape batch, time, features
+            dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
 
             vae_output = condition_model.forward(dy)
             timbre_cond = vae_output[1].detach()
@@ -188,6 +180,7 @@ def train():
 
             # concatenating timbre and pitch condition for putting into encoder of transformer
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+            combined_cond_for_generation = combined_cond
 
             # dx is the transposed input vector (in time dimension) for autoregressive training
             dx = dy[:,:-1,:]
@@ -207,7 +200,7 @@ def train():
                 param_group['lr'] *= lr_change_multiplier
             print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], e))
 
-        if e % eval_epoch == 0 and e > 0:
+        if (e + 1) % eval_epoch == 0 and e > 0:
             model.eval()
             print('evaluate model after epoch %d' % (e,))
 
@@ -236,7 +229,7 @@ def train():
             plt.savefig('out/trainsformer_losses.png')
 
 
-            num_generate = 5
+            num_generate = 2
             
             
             # print('generate %d random samples' % (num_generate,))
@@ -250,7 +243,7 @@ def train():
 
 
 
-            generated = model.generate(300, combined_cond)
+            generated = model.generate(300, combined_cond_for_generation)
             
             plt.close()
             plt.imshow(generated[0].cpu(), vmin=0.0, vmax=1.0)

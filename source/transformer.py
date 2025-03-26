@@ -41,26 +41,24 @@ class GesamTransformer(nn.Module):
 
 
     def forward(self, xdec, xenc):
-        xdec[:,0,:64] = xenc[:,0].unsqueeze(1).repeat(1,64)
-        xdec[:,0,64:] = xenc[:,1].unsqueeze(1).repeat(1,64)
+        # TODO: Think about adding the pitch to the encoder input
+        # xdec[:,0,:64] = xenc[:,0].unsqueeze(1).repeat(1,64)
+        # xdec[:,0,64:] = xenc[:,1].unsqueeze(1).repeat(1,64)
   
         xdec = self.input_projection_decoder(xdec)
         pos = torch.arange(0, xdec.shape[1], dtype=torch.long).to(self.device)
         pos_emb_dec = self.input_posemb_decoder(pos)
+        # TODO: Try out concatenating the positional embedding to the input
         xdec = xdec + pos_emb_dec
         
         xenc_timbre = xenc[:,:2]
         xenc_timbre = self.input_projection_encoder_timbre(xenc_timbre.unsqueeze(-1))
-        xenc_pos = xenc[:,2:]
-        xenc_pos = self.input_projection_encoder_pos(torch.argmax(xenc_pos, dim=1)).unsqueeze(1)
-        x_concat = torch.concat((xenc_timbre, xenc_pos), dim=1)
-        
-        pos = torch.arange(0, 3, dtype=torch.long).to(self.device)
-        pos_emb_enc = self.input_posemb_encoder(pos)
-        xenc = x_concat + pos_emb_enc
+        xenc_pitch = xenc[:,2:]
+        xenc_pitch = self.input_projection_encoder_pos(torch.argmax(xenc_pitch, dim=1)).unsqueeze(1)
+        x_concat = torch.concat((xenc_timbre, xenc_pitch), dim=1)
         
         mask = self.get_tgt_mask(xdec.shape[1])
-        ydec = self.transformer.forward(src=xenc,tgt=xdec,tgt_mask=mask)
+        ydec = self.transformer.forward(src=x_concat,tgt=xdec,tgt_mask=mask)
         ydec = self.output_projection(ydec)
         
         return ydec
