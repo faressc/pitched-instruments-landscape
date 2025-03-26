@@ -12,6 +12,7 @@ import os
 import shutil
 from pathlib import Path, PosixPath
 from typing import Any, Dict, Optional, Union
+import omegaconf
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
@@ -40,8 +41,8 @@ class CustomSummaryWriter(SummaryWriter):
     def __init__(
         self,
         log_dir: Union[str, PosixPath],
-        params: Optional[config.Params[str, Any]] = None,
-        metrics: Optional[Dict[str, None]] = {},
+        params: Optional[Union[Dict[Any, Any], omegaconf.DictConfig, omegaconf.ListConfig]] = None,
+        metrics: Optional[Dict[str, Any]] = None,
         sync_interval: Optional[int] = None,
         remote_dir: Optional[Union[str, PosixPath]] = None,
     ):
@@ -59,8 +60,18 @@ class CustomSummaryWriter(SummaryWriter):
         )
         self.datetime = self._extract_datetime_from_log_dir(log_dir)
 
-        if params:
-            self._log_hyperparameters(params, metrics, log_dir)
+        if isinstance(params, omegaconf.DictConfig or omegaconf.ListConfig):
+            # Convert OmegaConf DictConfig or ListConfig to a regular dictionary
+            converted_params = omegaconf.OmegaConf.to_container(params, resolve=True)
+            if isinstance(converted_params, dict):
+                params = converted_params
+        
+        if isinstance(params, dict):
+            # Convert nested dictionaries to a flat dictionary
+            flattened_params = self._flatten_dict(params)
+            if isinstance(log_dir, PosixPath):
+                log_dir = str(log_dir)
+            self._log_hyperparameters(flattened_params, metrics, log_dir)
 
         self.current_step = 0
 
@@ -77,17 +88,57 @@ class CustomSummaryWriter(SummaryWriter):
     def _extract_datetime_from_log_dir(self, log_dir: Union[str, PosixPath]) -> str:
         """Extracts datetime information from the log directory path."""
         return str(log_dir).split("/")[-1].split("_")[0]
+    
+    def _flatten_dict(self, d: Dict[str, Any], flattened_dict: Optional[Dict[str, Any]] = None, parent_key: str = '') -> Dict[str, Any]:
+        """
+        Flattens a nested dictionary into a single-level dictionary with dot-separated
+        keys for nested keys.
+        Args:
+            d (Dict[str, Any]): The dictionary to flatten.
+            flattened_dict (Optional[Dict[str, Any]]): The flattened dictionary to update.
+            parent_key (str): The base key to use for nested keys.
+        Returns:
+            Dict[str, Any]: The flattened dictionary.
+        """
+        if flattened_dict is None:
+            flattened_dict = {}
+        for k, v in d.items():
+            new_key = f"{parent_key}.{k}" if parent_key else k
+            if isinstance(v, dict):
+                self._flatten_dict(v, flattened_dict, new_key)
+            elif isinstance(v, list):
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        self._flatten_dict(item, flattened_dict, f"{new_key}.{i}")
+                    else:
+                        flattened_dict[f"{new_key}.{i}"] = item     
+            else:
+                flattened_dict[new_key] = v
+        return flattened_dict
 
     def _log_hyperparameters(
         self,
-        params: config.Params[str, Any],
-        metrics: Dict[str, None],
+        params: Dict[str, Any],
+        metrics: Union[Dict[str, Any], None],
         log_dir: str,
     ) -> None:
-        """Logs hyperparameters and initial metrics to TensorBoard."""
-        params = params.flattened_copy()
+        """
+        Adds hyperparameters and metrics to the same TensorBoard log file and enables scalar metrics in the HParams tab.
+        """
+        
         params["datetime"] = self.datetime
-        self._add_hparams(hparam_dict=params, metric_dict=metrics, run_name=log_dir)
+
+        exp, ssi, sei = hparams(params, metrics, None)
+
+        if self.file_writer is not None:
+            self.file_writer.add_summary(exp)
+            self.file_writer.add_summary(ssi)
+            self.file_writer.add_summary(sei)
+
+            if metrics is not None:
+                for k, v in metrics.items():
+                    if v is not None:
+                        self.add_scalar(k, v)
 
     def step(self) -> None:
         """
@@ -103,37 +154,6 @@ class CustomSummaryWriter(SummaryWriter):
         """Synchronizes the logs with the remote directory."""
         # path = f'mkdir -p {self.remote_dir} && rsync'
         os.system(f"rsync -rv --inplace --progress {self.log_dir} {self.remote_dir}")
-
-    def _add_hparams(
-        self,
-        hparam_dict: Dict[str, Any],
-        metric_dict: Dict[str, Optional[float]],
-        hparam_domain_discrete: Optional[Dict[str, list]] = None,
-        run_name: Optional[str] = None,
-    ) -> None:
-        """
-        Adds hyperparameters and metrics to the same TensorBoard log file and enables scalar metrics in the HParams tab.
-
-        Args:
-            hparam_dict (Dict[str, float]): Dictionary of hyperparameters.
-            metric_dict (Dict[str, Optional[float]]): Dictionary of metrics.
-            hparam_domain_discrete (Optional[Dict[str, list]]): Discrete domains for hyperparameters.
-            run_name (Optional[str]): Name of the run in TensorBoard.
-
-        Raises:
-            TypeError: If `hparam_dict` or `metric_dict` are not dictionaries.
-        """
-        if not isinstance(hparam_dict, dict) or not isinstance(metric_dict, dict):
-            raise TypeError("hparam_dict and metric_dict should be dictionary.")
-
-        exp, ssi, sei = hparams(hparam_dict, metric_dict, hparam_domain_discrete)
-
-        self.file_writer.add_summary(exp)
-        self.file_writer.add_summary(ssi)
-        self.file_writer.add_summary(sei)
-        for k, v in metric_dict.items():
-            if v is not None:
-                self.add_scalar(k, v)
 
 
 def return_tensorboard_path() -> PosixPath:
