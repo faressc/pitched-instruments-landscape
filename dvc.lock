@@ -1,7 +1,7 @@
 schema: '2.0'
 stages:
   preprocess:
-    cmd: python source/preprocess.py
+    cmd: python -u source/preprocess.py
     deps:
     - path: data/raw/
       hash: md5
@@ -15,20 +15,20 @@ stages:
     params:
       params.yaml:
         preprocess:
-          input_path_train: data/raw/nsynth-train
-          output_path_train: data/processed/train
-          input_path_valid: data/raw/nsynth-valid
-          output_path_valid: data/processed/valid
-          input_path_test: data/raw/nsynth-test
-          output_path_test: data/processed/test
-          model_name: facebook/encodec_24khz
-          sample_rate: 24000
-          initial_db_size: 1
+          batch_size: 8
           db_writemap: false
           ext:
           - wav
+          initial_db_size: 1
+          input_path_test: data/raw/nsynth-test
+          input_path_train: data/raw/nsynth-train
+          input_path_valid: data/raw/nsynth-valid
+          model_name: facebook/encodec_24khz
           num_workers: 30
-          batch_size: 8
+          output_path_test: data/processed/test
+          output_path_train: data/processed/train
+          output_path_valid: data/processed/valid
+          sample_rate: 24000
     outs:
     - path: data/processed/
       hash: md5
@@ -36,59 +36,22 @@ stages:
       size: 130354565120
       nfiles: 6
   train_vae:
-    cmd: python source/train_vae.py
+    cmd: python -u source/train_vae.py
     deps:
-    - path: data/partial/
-      hash: md5
-      md5: a96a08acb4a69e8e54a33835c543d3a0.dir
-      size: 36660500484
-      nfiles: 5
     - path: source/train_vae.py
       hash: md5
-      md5: cdef7fcc664aa48befa7a445d2b5c56e
-      size: 12135
+      md5: e2e34ea83071763cca97933c6ec87927
+      size: 12741
     - path: source/vae.py
       hash: md5
-      md5: 221d3e6ca599b5317f0bcd67ea8a82f3
-      size: 8936
+      md5: 0119b38654c0e6777d51fd374684d59d
+      size: 9045
     params:
       params.yaml:
         train:
-          vae:
-            epochs: 6
-            batch_size: 128
-            lr: 0.0001
-            wd: 0.05
-            betas:
-            - 0.9
-            - 0.95
-            dropout_ratio: 0.2
-            input_crop: 150
-            channels:
-            - 128
-            - 256
-            - 128
-            - 64
-            linears:
-            - 512
-            - 512
-            - 256
-            - 2
-            calculate_vae_loss:
-              _target_: vae.calculate_vae_loss
-              _partial_: true
-              epochs: 6
-              weighted_reproduction: true
-              loss_fn:
-                _target_: torch.nn.MSELoss
-                reduction: sum
-              cls_loss_fn:
-                _target_: torch.nn.CrossEntropyLoss
-              batch_size: 128
-          db_path_train: data/processed/train
           db_path_test: data/processed/test
+          db_path_train: data/processed/train
           db_path_valid: data/processed/valid
-          random_seed: 42
           num_workers: 0
           pitch:
           - 53
@@ -103,9 +66,46 @@ stages:
           - 62
           - 63
           - 64
+          random_seed: 42
+          vae:
+            batch_size: 256
+            betas:
+            - 0.9
+            - 0.95
+            calculate_vae_loss:
+              _partial_: true
+              _target_: vae.calculate_vae_loss
+              batch_size: 256
+              cls_loss_fn:
+                _target_: torch.nn.CrossEntropyLoss
+              epochs: 2000
+              loss_fn:
+                _target_: torch.nn.MSELoss
+                reduction: sum
+              weighted_reproduction: false
+            channels:
+            - 128
+            - 256
+            - 512
+            - 1024
+            - 2048
+            - 4096
+            dropout_ratio: 0.2
+            epochs: 2000
+            input_crop: 150
+            linears:
+            - 16384
+            - 8192
+            - 4096
+            - 2048
+            - 1024
+            - 512
+            - 2
+            lr: 0.0001
+            wd: 0.05
     outs:
     - path: out/
       hash: md5
-      md5: af1ee049f5e1b18ef4b0f11fdae596ad.dir
-      size: 13196755
+      md5: caa6498a40e0bd0448aa5f11769fd288.dir
+      size: 4565715370
       nfiles: 10
