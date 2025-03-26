@@ -48,9 +48,43 @@
             ]
         },
         {
-            "label": "Run exp_workflow",
+            "label": "Run exp_workflow.sh",
             "type": "shell",
             "command": "${workspaceFolder}/exp_workflow.sh",
+            "group": "none",
+            "options": {
+                "env": {
+                    "DEBUG_MODE": "1"
+                },
+            },
+            "isBackground": true,
+            // This task is run before some debug tasks.
+            "problemMatcher": [
+                {
+                    "owner": "custom",
+                    "fileLocation": ["relative", "${workspaceFolder}"],
+                    "pattern": [
+                        {
+                            "kind": "file",
+                            "regexp": "ERROR: failed to reproduce '([^']+)': failed to run: python ([^,]+), exited with ([-0-9]+)",
+                            "file": 1,
+                            "message": 0
+                        }
+                    ],
+                    // Signal the launch.json when the task is done with the endPattern.
+                    // So that it can finish the "preLaunchTask" and start the debug session.
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": ".",
+                        "endsPattern": "^Waiting for debugger to attach..."
+                    }
+                }
+            ]
+        },
+        {
+            "label": "Run slurm_job.sh",
+            "type": "shell",
+            "command": "${workspaceFolder}/slurm_job.sh",
             "group": "none",
             "options": {
                 "env": {

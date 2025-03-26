@@ -30,7 +30,7 @@
             "preLaunchTask": "Compound Task"
         },
         {
-            "name": "(debugpy) Debug exp_workflow",
+            "name": "(debugpy) Debug exp_workflow.sh",
             "type": "debugpy",
             "request": "attach",
             "connect": {
@@ -43,7 +43,23 @@
                     "remoteRoot": "."
                 }
             ],
-            "preLaunchTask": "Run exp_workflow",
+            "preLaunchTask": "Run exp_workflow.sh",
+        },
+        {
+            "name": "(debugpy) Debug slurm_job.sh",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 8080,
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ],
+            "preLaunchTask": "Run slurm_job.sh",
         },
         {
             "name": "(debugpy) DVC stage: preprocess",

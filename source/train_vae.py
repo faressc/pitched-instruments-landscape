@@ -125,6 +125,15 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
 def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/vae/checkpoints", exist_ok=True)
+
+    # Check how many CUDA GPUs are available
+    gpu_count = torch.cuda.device_count()
+    print(f"Number of available GPUs: {gpu_count}")
+
+    # Print GPU details if available
+    if gpu_count > 0:
+        for i in range(gpu_count):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
