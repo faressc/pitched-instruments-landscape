@@ -19,7 +19,17 @@ stages:
     params:
     - train
     outs:
-    - out/
+    - out/vae/
+  train_transformer:
+    cmd: python -u source/train_transformer.py
+    deps:
+    - source/train_transformer.py
+    - source/transformer.py
+    # - data/processed/ # Takes to long to hash
+    params:
+    - train
+    outs:
+    - out/transformer/
   # export:
   #   cmd: python source/export.py
   #   deps:
