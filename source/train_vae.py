@@ -30,9 +30,10 @@ import utils.ffmpeg_helper as ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 
+LOG_TENSORBOARD = True
 
 @torch.no_grad()
-def eval_model(model, dl, device, loss_fn, input_crop):
+def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
     model.eval()
     losses = []
     cls_pred = []
@@ -40,7 +41,7 @@ def eval_model(model, dl, device, loss_fn, input_crop):
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
-        emb_pred, mean, var, note_cls = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
         gt_cls = data['metadata']['pitch'].to(device)
         rec_loss, reg_loss, cls_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, note_cls, gt_cls, loss_fn.keywords['epochs'])
         losses.append([rec_loss.item(), reg_loss.item(), cls_loss.item()])
@@ -48,20 +49,18 @@ def eval_model(model, dl, device, loss_fn, input_crop):
         cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
         cls_gt.extend(gt_cls.cpu().numpy())
         
-        if i > 50: # data set can be very large
+        if i > max_num_batches: # data set can be very large
             break
-        
-    b = np.array(cls_pred) == np.array(cls_gt)    
+
+    b = np.array(cls_pred) == np.array(cls_gt)
     acc01 = np.count_nonzero(b) / len(b)
-    
+
     rec_loss, reg_loss, cls_loss = np.array(losses).mean(axis=0)
     return rec_loss, reg_loss, cls_loss, acc01
 
 @torch.no_grad()
-def visu_model(model, dl, device, input_crop, name_prefix=''):
+def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None):
     model.eval()
-    num_samples = 500
-    
     embs = np.zeros((0,input_crop,128))
     embs_pred = np.zeros((0,input_crop,128))
     means = np.zeros((0,2))
@@ -69,14 +68,14 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
         emb = emb.view(-1,128,300).permute(0,2,1)
-        emb_pred, mean, var, note_cls = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot  = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
         families = np.concat((families, data['metadata']['family'].numpy()))
-        if len(embs) > num_samples: # skip when ds gets too large
+        if len(embs) > num_examples: # skip when ds gets too large
             break
-    
+
     
     # plot original embedding and decoded embedding
     save_index = 1
@@ -87,28 +86,59 @@ def visu_model(model, dl, device, input_crop, name_prefix=''):
     # generated embedding
     axes1[1].imshow(embs_pred[save_index], vmin=0.0, vmax=1.0)
     axes1[1].set_title("Generated")
-    plt.savefig('out/%s_embedding_comparison.png' % (name_prefix,))
-    fig1.clear()
-    plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
+    plt.savefig('out/vae/%s_embedding_comparison.png' % (name_prefix))
 
     # plot the latent as scatters
     fig2 = plt.figure(2)
     plt.scatter(means[:,0], means[:,1], c=families)
-    plt.savefig('out/%s_latent_visualization.png' % (name_prefix,))
-    fig2.clear()
+    plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
+
+    if writer is not None:
+        writer.add_figure(f"Latent_visualization/{name_prefix}", fig2, epoch)
+        writer.add_figure(f"Embedding_comparison/{name_prefix}", fig1, epoch)
+
+    plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
     plt.close(2)
+    fig1.clear()
+    fig2.clear()
+
+@torch.no_grad()
+def hear_model(model, encodec_model, data_loader, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None):
+    model.eval()
+    for i, data in enumerate(data_loader):
+        emb = data['embeddings'][:num_examples].to(device)
+        emb = emb.view(-1,128,300).permute(0,2,1)
+        emb = emb.to(device)
+        emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
+        emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
+        decoded_pred = encodec_model.decoder((emb_pred).permute(0,2,1))
+        decoded_pred = decoded_pred.detach().cpu().numpy()
+        for ind in range(num_examples):
+            decoded_sample = decoded_pred[ind]
+            decoded_sample_int = np.array(decoded_sample * (2**15 - 1), dtype=np.int16)
+            ffmpeg.write_audio_file([decoded_sample_int], "out/vae/%s_generated_%d.wav" % (name_prefix, ind), 24000)
+            if writer is not None:
+                writer.add_audio(f"Generated/{name_prefix}_{ind}", decoded_sample, epoch, sample_rate=24000)
+
+        del emb_pred, mean, var, note_cls, one_hot
 
 def main():
     print("##### Starting Train Stage #####")
-    os.makedirs("out/checkpoints", exist_ok=True)
+    os.makedirs("out/vae/checkpoints", exist_ok=True)
     
     # Load the parameters from the dictionary into variables
     cfg = OmegaConf.load("params.yaml")
 
     epochs = cfg.train.vae.epochs
     
-    eval_epoch = 5
+    eval_epoch = 1
     visu_epoch = 5
+    hear_epoch = 5
+
+    # change learning rate at several points during training
+    lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
+    lr_change_multiplier = 0.5
+
 
     # Set a random seed for reproducibility across all devices. Add more devices if needed
     config.set_random_seeds(cfg.train.random_seed)
@@ -156,32 +186,41 @@ def main():
     print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
     encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
+    writer = None
+    if LOG_TENSORBOARD:
+        tensorboard_path = logs.return_tensorboard_path()
+        metrics = {'reconstruction_loss': None, 'regularisation_loss': None, 'classifier_loss': None, 'classifier_accuracy': None}
+        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics)
+
+        sample_inputs = torch.randn(1, 300, 128) 
+        writer.add_graph(vae, sample_inputs.to(device))
+
     print("######## Training ########")
     for epoch in range(epochs):
         #
         # training epoch
-        # 
+        # a
         vae.train()
         for i, data in enumerate(train_dataloader):
-            # print(f"Data audio_data[{i}]: {data['audio_data'].shape}")
-            # print(f"Data metadata[{i}]: {data['metadata']['pitch'].shape}")
-            # print(f"Data embeddings[{i}]: {data['embeddings'].shape}")
             optimizer.zero_grad()
             
             emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
             emb = emb.to(device)
-            emb_pred, mean, var, note_cls = vae.forward(emb)
+            emb_pred, mean, var, note_cls, one_hot = vae.forward(emb)
             
             rec_loss, reg_loss, cls_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, note_cls, data['metadata']['pitch'].to(device), epoch)
             
             loss = rec_loss + reg_loss + cls_loss
             loss.backward()
             optimizer.step()
-                    
-        if epoch == int(0.5*epochs) or epoch == int(0.65*epochs) or epoch == int(0.8*epochs) or epoch == int(0.9*epochs):
+
+
+        # adapt learning rate
+        if epoch in map(lambda x: int(epochs*x), lr_change_intervals):
+            # adapt learning rate with multiplier
             for param_group in optimizer.param_groups:
-                param_group['lr'] *= 0.5
-            print('decreased learning rate to %.8f' % (param_group['lr'],))
+                param_group['lr'] *= lr_change_multiplier
+            print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], epoch))
         
         #
         # evaluate model
@@ -190,86 +229,33 @@ def main():
         if (epoch % eval_epoch) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
-            losses = eval_model(vae, train_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+            losses = eval_model(vae, train_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
             print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
-            losses = eval_model(vae, valid_dataloader, device, calculate_vae_loss, cfg.train.vae.input_crop)
+            losses = eval_model(vae, valid_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
-        
-            torch.save(vae, 'out/checkpoints/vae.torch')
+            torch.save(vae, 'out/vae/checkpoints/vae.torch')
+
+            if writer is not None:
+                writer.add_scalar("reconstruction_loss", losses[0], epoch)
+                writer.add_scalar("regularisation_loss", losses[1], epoch)
+                writer.add_scalar("classifier_loss", losses[2], epoch)
+                writer.add_scalar("classifier_accuracy", losses[3], epoch)
+
         if (epoch % visu_epoch) == 0 and epoch > 0:
-            # visual evaluation on validation dataset
-            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train')
-            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val')
-            # save audio
-            num_generate = 5
-            emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(emb_pred[:num_generate])
-            decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
-            decoded = decoded.detach().cpu().numpy()
-            decoded_int = np.int16(decoded * (2**15 - 1))
-            for ind in range(num_generate):
-                decoded_sample = decoded_int[ind]
-                ffmpeg.write_audio_file(decoded_sample, "out/vae_generated_%d.wav" % (ind,), 24000)
+            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer)
+            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val', num_examples=500, epoch=epoch, writer=writer)
+
+        if (epoch % hear_epoch) == 0 and epoch > 0:
+            hear_model(vae, encodec_model, train_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='train', epoch=epoch, writer=writer)
+            hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='val', epoch=epoch, writer=writer)
+
+        if writer is not None:
+            writer.step()
             
-            
-            
-    print("Gone through the dataset")
-    # # Create a i object to write the tensorboard logs
-    # tensorboard_path = logs.return_tensorboard_path()
-    # metrics = {'Epoch_Loss/train': None, 'Epoch_Loss/test': None, 'Batch_Loss/train': None}
-    # writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=params, metrics=metrics)
-
-    # # Set a random seed for reproducibility across all devices. Add more devices if needed
-    # config.set_random_seeds(random_seed)
-    # # Prepare the requested device for training. Use cpu if the requested device is not available 
-    # device = config.prepare_device(device_request)
-
-    # # Load preprocessed data from the input file into the training and testing tensors
-    # input_file_path = Path('data/processed/data.pt')
-    # data = torch.load(input_file_path)
-    # X_ordered_training = data['X_ordered_training']
-    # y_ordered_training = data['y_ordered_training']
-    # X_ordered_testing = data['X_ordered_testing']
-    # y_ordered_testing = data['y_ordered_testing']
-
-    # # Create the model
-    # model = NeuralNetwork(conv1d_filters, conv1d_strides, hidden_units).to(device)
-    # summary = torchinfo.summary(model, (1, 1, input_size), device=device)
-    # print(summary)
-
-    # # Add the model graph to the tensorboard logs
-    # sample_inputs = torch.randn(1, 1, input_size) 
-    # writer.add_graph(model, sample_inputs.to(device))
-
-    # # Define the loss function and the optimizer
-    # loss_fn = torch.nn.MSELoss(reduction='mean')
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-    # # Create the dataloaders
-    # training_dataset = torch.utils.data.TensorDataset(X_ordered_training, y_ordered_training)
-    # training_dataloader = torch.utils.data.DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
-    # testing_dataset = torch.utils.data.TensorDataset(X_ordered_testing, y_ordered_testing)
-    # testing_dataloader = torch.utils.data.DataLoader(testing_dataset, batch_size=batch_size, shuffle=False)
-
-    # # Training loop
-    # for t in range(epochs):
-    #     print(f"Epoch {t+1}\n-------------------------------")
-    #     epoch_loss_train = train_epoch(training_dataloader, model, loss_fn, optimizer, device, writer, epoch=t)
-    #     epoch_loss_test = test_epoch(testing_dataloader, model, loss_fn, device, writer)
-    #     epoch_audio_prediction, epoch_audio_target  = generate_audio_examples(model, device, testing_dataloader)
-    #     writer.add_scalar("Epoch_Loss/train", epoch_loss_train, t)
-    #     writer.add_scalar("Epoch_Loss/test", epoch_loss_test, t)
-    #     writer.add_audio("Audio/prediction", epoch_audio_prediction, t, sample_rate=44100)
-    #     writer.add_audio("Audio/target", epoch_audio_target, t, sample_rate=44100)        
-    #     writer.step()  
-
-    # writer.close()
-
-    # # Save the model checkpoint
-    # output_file_path = Path('models/checkpoints/model.pth')
-    # output_file_path.parent.mkdir(parents=True, exist_ok=True)
-    # torch.save(model.state_dict(), output_file_path)
-    # print("Saved PyTorch Model State to model.pth")
+    print("Training completed. Saving the model.")
+    torch.save(vae, 'out/vae/checkpoints/vae.torch')
+    if writer is not None:
+        writer.close()
     
-
 if __name__ == "__main__":
     main()
