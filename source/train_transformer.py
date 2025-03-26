@@ -58,7 +58,7 @@ def eval_model(model, cond_model, dl, device, num_batches):
         dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1).detach()
 
         logits = model.forward(xdec=dx, xenc=combined_cond)
-        loss = F.mse_loss(logits,dx).item()
+        loss = F.mse_loss(logits,dy).item()
 
         losses.append(loss)
         
