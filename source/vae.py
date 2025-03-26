@@ -176,13 +176,16 @@ class ConditionConvVAE(nn.Module):
         for layer in self.modules():
             if isinstance(layer, nn.Conv1d):
                 nn.init.xavier_normal_(layer.weight, gain=1)
-                nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
+                if layer.bias is not None:
+                    nn.init.constant_(layer.bias, 0)
             if isinstance(layer, nn.ConvTranspose1d):
                 nn.init.xavier_normal_(layer.weight, gain=1)
-                nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
+                if layer.bias is not None:
+                    nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
             if isinstance(layer, nn.Linear):
                 nn.init.xavier_normal_(layer.weight, gain=1)
-                nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
+                if layer.bias is not None:
+                    nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
 def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, iter, device, epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size):
