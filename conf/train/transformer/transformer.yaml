@@ -4,9 +4,9 @@ weight_decay: 0.05
 betas: [0.9, 0.95]  # adam betas
 batch_size: 64
 eval_interval: 200
-visualize_interval: 25
-hear_interval: 25
-save_interval: 50
+visualize_interval: 200
+hear_interval: 200
+save_interval: 1000
 
 # transformer config
 block_size: 300
