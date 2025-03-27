@@ -125,6 +125,9 @@ def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/vae/checkpoints", exist_ok=True)
 
+    # This is needed to avoid opening too many files at once
+    torch.multiprocessing.set_sharing_strategy('file_system')
+
     # Check how many CUDA GPUs are available
     gpu_count = torch.cuda.device_count()
     print(f"Number of available GPUs: {gpu_count}")
