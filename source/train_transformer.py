@@ -19,7 +19,7 @@ import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = False
+LOG_TENSORBOARD = True
 
 @torch.no_grad()
 def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
@@ -54,7 +54,60 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
         
     return loss, gen_loss
 
-def train():
+@torch.no_grad()
+def visu_model(model, cond_model, dl, device, name_prefix="", epoch=0, writer=None):
+    model.eval()
+    for i, data in enumerate(dl):
+        emb = data["embeddings"].to(device)
+        vae_output = cond_model.forward(emb)
+        timbre_cond = vae_output[1].detach()
+        pitch_cond = vae_output[4].detach()
+        combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+
+        generated = model.generate(emb.shape[1], combined_cond)
+        
+        fig1, axes1 = plt.subplots(1, 2, figsize=(10, 10), num=1)
+        # orig embedding
+        axes1[0].imshow(emb[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
+        axes1[0].set_title("Original")
+        # generated embedding
+        axes1[1].imshow(generated[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
+        axes1[1].set_title("Generated")
+        plt.savefig(f"out/transformer/{name_prefix}_embedding_comparison.png")
+
+        plt.close(1)
+        fig1.clear()
+        break
+
+@torch.no_grad()
+def hear_model(model, cond_model, encodec_model, dl, device, num_examples, name_prefix="", epoch=0, writer=None):
+    model.eval()
+    embs_decoded = []
+    for i, data in enumerate(dl):
+        emb = data["embeddings"].to(device)
+        vae_output = cond_model.forward(emb)
+        timbre_cond = vae_output[1].detach()
+        pitch_cond = vae_output[4].detach()
+        combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+
+        generated = model.generate(emb.shape[1], combined_cond)
+        generated = MetaAudioDataset.denormalize_embedding(generated)
+        generated = generated.permute(0,2,1)
+        decoded = encodec_model.decoder(generated)
+        decoded = decoded.detach().cpu().numpy()
+
+        for element in range(decoded.shape[0]):
+            embs_decoded.append(decoded[element])
+            if len(embs_decoded) >= num_examples:
+                break
+        if len(embs_decoded) >= num_examples:
+            break
+
+    for i, decoded in enumerate(embs_decoded):
+        decoded_int = np.array(decoded * (2**15 - 1), dtype=np.int16)
+        ffmpeg.write_audio_file(decoded_int, f"out/transformer/{name_prefix}_generated_{i}.wav", 24000)
+
+def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/transformer/checkpoints", exist_ok=True)
 
@@ -88,18 +141,18 @@ def train():
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=2, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
-    print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
+    print(f"Creating the train dataloader with batch_size: {cfg.train.transformer.batch_size}")
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=cfg.train.vae.batch_size,
+                                  batch_size=cfg.train.transformer.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
                                   shuffle=False,
                                   )
 
-    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
+    print(f"Creating the valid dataloader with batch_size: {cfg.train.transformer.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
-                                  batch_size=cfg.train.vae.batch_size,
+                                  batch_size=cfg.train.transformer.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
@@ -138,9 +191,27 @@ def train():
         encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
         encodec_model.eval()
 
-    combined_cond_for_generation = torch.Tensor()
+    writer = None
+    if LOG_TENSORBOARD:
+        tensorboard_path = logs.return_tensorboard_path()
+        path_parts = Path(tensorboard_path).parts
+        tensorboard_path = str(Path(*path_parts[:-1]) / "transformer" / path_parts[-1])
+        remote_dir = Path("logs/tensorboard/transformer")
+        remote_dir = logs.construct_remote_dir(remote_dir)
+        metrics = {'train/loss': None,
+                   'train/gen_loss': None,
+                   'valid/loss': None,
+                   'valid/gen_loss': None}
+
+        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, remote_dir=remote_dir)
+
+        emb_shifted_random = torch.randn(1, 300, 128).to(device)
+        combined_cond_random = torch.randn(1, 130).to(device)
+        model.eval()
+        writer.add_graph(model, (emb_shifted_random, combined_cond_random))
+
     print("######## Training ########")
-    for epoch in range(epochs):
+    for epoch in range(epochs + 1):
         #
         # training epoch
         #
@@ -189,54 +260,28 @@ def train():
             losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=25, loss_fn=loss_fn)
             print("VALID: Epoch %d: Val loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
 
-            # if len(eval_val_losses) > 0 and val_loss < min(eval_val_losses): 
-            #     print('save new best model')
-            #     torch.save(model, 'out/transformer/checkpoints/transformer.torch')
-            
-            # eval_epochs.append(epoch)
-            # eval_train_losses.append(train_loss)
-            # eval_val_losses.append(val_loss)
-            
-            
-            # plt.close(0)
-            # plt.figure(0)
-            # plt.plot(eval_epochs, eval_train_losses, marker='o', linestyle='--', label='train')
-            # plt.plot(eval_epochs, eval_val_losses, marker='o', linestyle='--', label='val')
-            # plt.legend()
-            # plt.title('Train and Validation Losses after epoch %d' % epoch)
-            # plt.savefig('out/transformer/trainsformer_losses.png')
+        if (epoch % cfg.train.transformer.visualize_interval) == 0 and epoch > 0:
+            print("Visualizing the model")
+            visu_model(model, condition_model, train_dataloader, device=device, name_prefix="train", epoch=epoch)
+            visu_model(model, condition_model, valid_dataloader, device=device, name_prefix="valid", epoch=epoch)
 
+        if (epoch % cfg.train.transformer.hear_interval) == 0 and epoch > 0:
+            print("Hearing the model")
+            hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch)
+            hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch)
 
-            num_generate = 2
+        if (epoch % cfg.train.transformer.save_interval) == 0 and epoch > 0:
+            print("Saving model at epoch %d" % (epoch))
+            torch.save(model, 'out/transformer/checkpoints/vae_epoch_%d.torch' % (epoch))
+
+        # if writer is not None:
+        #     writer.step()
             
-            
-            # print('generate %d random samples' % (num_generate,))
-            # # generate condition vector combining pitch and timbre
-            # timbre = torch.rand((num_generate, 2)) * 2.0 - 1.0
-            # pitches = torch.zeros((num_generate,128))
-            # for i in range(num_generate):
-            #     ri = np.random.randint(21,100)
-            #     pitches[i,ri] = 1.0
-            # combined_cond = torch.cat((timbre, pitches), dim=1).to(device)
-
-
-
-            generated = model.generate(300, combined_cond_for_generation)
-            
-            plt.close()
-            plt.imshow(generated[0].cpu(), vmin=0.0, vmax=1.0)
-            plt.savefig('out/transformer/transformer_generated.png')          
-            plt.close()  
-            plt.imshow(emb[0].cpu(), vmin=0.0, vmax=1.0)
-            plt.savefig('out/transformer/transformer_gt.png')      
-            emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(generated)
-            decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
-            decoded = decoded.detach().cpu().numpy()
-            decoded_int = np.int16(decoded * (2**15 - 1))
-            for ind in range(num_generate):
-                decoded_sample = decoded_int[ind]
-                ffmpeg.write_audio_file(decoded_sample, "out/transformer/transformer_generated_%d.wav" % (ind,), 24000)
+    print("Training completed. Saving the model.")
+    torch.save(model, 'out/transformer/checkpoints/vae_final_epoch_%d.torch' % (epochs))
+    # if writer is not None:
+    #     writer.close()
 
 
 if __name__ == '__main__':
-    train()
+    main()

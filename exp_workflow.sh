@@ -63,12 +63,12 @@ dvc cache dir $DEFAULT_DIR/.dvc/cache &&
 # Pull the data from the DVC remote repository
 # if [ -f "data/raw.dvc" ]; then
 echo "Pulling data with DVC..." 
-dvc pull data/processed;
+dvc pull out/vae;
 # fi &&
 
 # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
 echo "Running experiment..." &&
-dvc exp run -s train_vae $EXP_PARAMS &&
+dvc exp run -s train_transformer $EXP_PARAMS &&
 
 # Push the results to the DVC remote repository
 echo "Pushing experiment..." &&

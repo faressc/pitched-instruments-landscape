@@ -33,7 +33,7 @@ import utils.ffmpeg_helper as ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):

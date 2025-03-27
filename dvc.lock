@@ -38,14 +38,18 @@ stages:
   train_vae:
     cmd: python -u source/train_vae.py
     deps:
+    - path: source/dataset.py
+      hash: md5
+      md5: 3caee1c3da1c555a8ca9aea750228bda
+      size: 6338
     - path: source/train_vae.py
       hash: md5
-      md5: e2e34ea83071763cca97933c6ec87927
-      size: 12741
+      md5: d7eb3c93ae0dcd75b75c7704b6b81673
+      size: 13194
     - path: source/vae.py
       hash: md5
-      md5: 0119b38654c0e6777d51fd374684d59d
-      size: 9045
+      md5: 5c917518c3f1b8049591c018502f1bfc
+      size: 9764
     params:
       params.yaml:
         train:
@@ -53,20 +57,32 @@ stages:
           db_path_train: data/processed/train
           db_path_valid: data/processed/valid
           num_workers: 0
-          pitch:
-          - 53
-          - 54
-          - 55
-          - 56
-          - 57
-          - 58
-          - 59
-          - 60
-          - 61
-          - 62
-          - 63
-          - 64
+          pitch: -1
           random_seed: 42
+          transformer:
+            batch_size: 64
+            betas:
+            - 0.9
+            - 0.95
+            block_size: 300
+            condition_model_path: out/vae/checkpoints/vae_epoch_50.torch
+            dropout: 0.0
+            epochs: 2000
+            eval_interval: 200
+            feedforward_dimension: 2048
+            hear_interval: 200
+            input_dimension: 128
+            internal_dimension: 512
+            learning_rate: 0.0001
+            loss_fn:
+              _target_: torch.nn.MSELoss
+              reduction: mean
+            n_head: 8
+            n_layer_decoder: 11
+            n_layer_encoder: 8
+            save_interval: 50
+            visualize_interval: 200
+            weight_decay: 0.05
           vae:
             batch_size: 256
             betas:
@@ -78,7 +94,7 @@ stages:
               batch_size: 256
               cls_loss_fn:
                 _target_: torch.nn.CrossEntropyLoss
-              epochs: 2000
+              epochs: 150
               loss_fn:
                 _target_: torch.nn.MSELoss
                 reduction: sum
@@ -91,7 +107,9 @@ stages:
             - 2048
             - 4096
             dropout_ratio: 0.2
-            epochs: 2000
+            epochs: 150
+            eval_interval: 5
+            hear_interval: 25
             input_crop: 150
             linears:
             - 16384
@@ -102,10 +120,111 @@ stages:
             - 512
             - 2
             lr: 0.0001
+            save_interval: 50
+            visualize_interval: 25
             wd: 0.05
     outs:
-    - path: out/
+    - path: out/vae/
       hash: md5
-      md5: caa6498a40e0bd0448aa5f11769fd288.dir
-      size: 4565715370
-      nfiles: 10
+      md5: 3fb85845855571a12737f87d4b095552.dir
+      size: 4567301805
+      nfiles: 15
+  train_transformer:
+    cmd: python -u source/train_transformer.py
+    deps:
+    - path: out/vae/
+      hash: md5
+      md5: 3fb85845855571a12737f87d4b095552.dir
+      size: 4567301805
+      nfiles: 15
+    - path: source/dataset.py
+      hash: md5
+      md5: 3caee1c3da1c555a8ca9aea750228bda
+      size: 6338
+    - path: source/train_transformer.py
+      hash: md5
+      md5: eec729d7e4d68ee466eb6d551402987c
+      size: 12920
+    - path: source/transformer.py
+      hash: md5
+      md5: 6d3c97a8026f2685f2fd3b064320b7f4
+      size: 3835
+    params:
+      params.yaml:
+        train:
+          db_path_test: data/processed/test
+          db_path_train: data/processed/train
+          db_path_valid: data/processed/valid
+          num_workers: 0
+          pitch: -1
+          random_seed: 42
+          transformer:
+            batch_size: 64
+            betas:
+            - 0.9
+            - 0.95
+            block_size: 300
+            condition_model_path: out/vae/checkpoints/vae_epoch_50.torch
+            dropout: 0.0
+            epochs: 2000
+            eval_interval: 200
+            feedforward_dimension: 2048
+            hear_interval: 200
+            input_dimension: 128
+            internal_dimension: 512
+            learning_rate: 0.0001
+            loss_fn:
+              _target_: torch.nn.MSELoss
+              reduction: mean
+            n_head: 8
+            n_layer_decoder: 11
+            n_layer_encoder: 8
+            save_interval: 50
+            visualize_interval: 200
+            weight_decay: 0.05
+          vae:
+            batch_size: 256
+            betas:
+            - 0.9
+            - 0.95
+            calculate_vae_loss:
+              _partial_: true
+              _target_: vae.calculate_vae_loss
+              batch_size: 256
+              cls_loss_fn:
+                _target_: torch.nn.CrossEntropyLoss
+              epochs: 150
+              loss_fn:
+                _target_: torch.nn.MSELoss
+                reduction: sum
+              weighted_reproduction: false
+            channels:
+            - 128
+            - 256
+            - 512
+            - 1024
+            - 2048
+            - 4096
+            dropout_ratio: 0.2
+            epochs: 150
+            eval_interval: 5
+            hear_interval: 25
+            input_crop: 150
+            linears:
+            - 16384
+            - 8192
+            - 4096
+            - 2048
+            - 1024
+            - 512
+            - 2
+            lr: 0.0001
+            save_interval: 50
+            visualize_interval: 25
+            wd: 0.05
+    outs:
+    - path: out/transformer/
+      hash: md5
+      md5: ba47225f27c924e9a209425832b5350b.dir
+      size: 1680443
+      nfiles: 6
