@@ -125,7 +125,8 @@ def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/vae/checkpoints", exist_ok=True)
 
-    # This is needed to avoid opening too many files at once
+    # This is needed to avoid opening too many file descriptors
+    # when using multiple workers in the dataloader
     torch.multiprocessing.set_sharing_strategy('file_system')
 
     # Check how many CUDA GPUs are available
