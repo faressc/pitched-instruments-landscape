@@ -95,8 +95,8 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
 
     if writer is not None:
-        writer.add_figure(f"Latent_visualization/{name_prefix}", fig2, epoch)
-        writer.add_figure(f"Embedding_comparison/{name_prefix}", fig1, epoch)
+        writer.add_figure(f"{name_prefix}/latent_visualization", fig2, epoch)
+        writer.add_figure(f"{name_prefix}/embedding_comparison", fig1, epoch)
 
     plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
     plt.close(2)
@@ -106,20 +106,28 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
 @torch.no_grad()
 def hear_model(model, encodec_model, data_loader, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None):
     model.eval()
+    embs_decoded = []
     for i, data in enumerate(data_loader):
-        emb = data['embeddings'][:num_examples].to(device)
-        emb = emb.to(device)
+        emb = data['embeddings'].to(device)
         emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
+
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
-        decoded_pred = encodec_model.decoder((emb_pred).permute(0,2,1))
+        emb_pred = emb_pred.permute(0,2,1)
+        decoded_pred = encodec_model.decoder(emb_pred)
         decoded_pred = decoded_pred.detach().cpu().numpy()
-        for ind in range(num_examples):
-            decoded_sample = decoded_pred[ind]
-            decoded_sample_int = np.array(decoded_sample * (2**15 - 1), dtype=np.int16)
-            ffmpeg.write_audio_file([decoded_sample_int], "out/vae/%s_generated_%d.wav" % (name_prefix, ind), 24000)
-            if writer is not None:
-                writer.add_audio(f"Generated/{name_prefix}_{ind}", decoded_sample, epoch, sample_rate=24000)
-        break
+
+        for element in range(decoded_pred.shape[0]):
+            embs_decoded.append(decoded_pred[element])
+            if len(embs_decoded) > num_examples:
+                break
+        if len(embs_decoded) > num_examples:
+            break
+
+    for i, decoded in enumerate(embs_decoded):
+        decoded_int = np.array(decoded * (2**15 - 1), dtype=np.int16)
+        ffmpeg.write_audio_file(decoded_int, f"out/vae/{name_prefix}_generated_{i}.wav", 24000)
+        if writer is not None:
+            writer.add_audio(f"{name_prefix}/generated_{i}", decoded, epoch, sample_rate=24000)
 
 def main():
     print("##### Starting Train Stage #####")
@@ -215,7 +223,7 @@ def main():
         writer.add_graph(vae, sample_inputs.to(device))
 
     print("######## Training ########")
-    for epoch in range(epochs):
+    for epoch in range(epochs+1):
         #
         # training epoch
         #
@@ -265,12 +273,12 @@ def main():
 
         if (epoch % cfg.train.vae.visualize_interval) == 0 and epoch > 0:
             visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer)
-            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val', num_examples=500, epoch=epoch, writer=writer)
+            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='valid', num_examples=500, epoch=epoch, writer=writer)
 
         if cfg.train.vae.hear_interval > 0:
             if (epoch % cfg.train.vae.hear_interval) == 0 and epoch > 0:
                 hear_model(vae, encodec_model, train_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='train', epoch=epoch, writer=writer)
-                hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='val', epoch=epoch, writer=writer)
+                hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='valid', epoch=epoch, writer=writer)
 
         if (epoch % cfg.train.vae.save_interval) == 0 and epoch > 0:
             print("Saving model at epoch %d" % (epoch))
