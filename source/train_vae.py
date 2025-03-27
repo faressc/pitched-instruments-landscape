@@ -193,6 +193,7 @@ def main():
 
     print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
     encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
+    encodec_model.eval()
 
     writer = None
     if LOG_TENSORBOARD:
@@ -200,14 +201,15 @@ def main():
         metrics = {'reconstruction_loss': None, 'regularisation_loss': None, 'classifier_loss': None, 'classifier_accuracy': None}
         writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics)
 
-        sample_inputs = torch.randn(1, 300, 128) 
+        sample_inputs = torch.randn(1, 300, 128)
+        vae.eval()
         writer.add_graph(vae, sample_inputs.to(device))
 
     print("######## Training ########")
     for epoch in range(epochs):
         #
         # training epoch
-        # a
+        #
         vae.train()
         for i, data in enumerate(train_dataloader):
             optimizer.zero_grad()
