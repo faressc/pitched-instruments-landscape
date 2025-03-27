@@ -71,12 +71,13 @@ class GesamTransformer(nn.Module):
         """
         if not torch.is_tensor(condition):
             condition = torch.tensor(condition, dtype=torch.float32).to(device=self.device)        
-        gx = torch.zeros((condition.shape[0],1,self.config['input_dimension']), dtype=torch.float32).to(self.device) # all zeros is the 'start token'
+        start_token = torch.zeros((condition.shape[0],1,self.config['input_dimension']), dtype=torch.float32).to(self.device) # all zeros is the 'start token'
             
-        for _ in range(num_tokens-1):
-            ng = self.forward(xdec=gx,xenc=condition)[:, [-1], :]
-            gx = torch.cat((gx, ng), dim=1)
-        return gx
+        for _ in range(num_tokens):
+            next_token = self.forward(xdec=start_token,xenc=condition)[:, [-1], :]
+            start_token = torch.cat((start_token, next_token), dim=1)
+
+        return start_token[:, 1:, :] # remove the start token
     
 
     def get_tgt_mask(self, size) -> torch.tensor:

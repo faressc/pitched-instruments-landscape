@@ -42,9 +42,8 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
         loss = loss_fn(logits, emb).item()
 
         # Generate the whole sequence with the model
-        gen_crop = 150
-        generated = model.generate(gen_crop, combined_cond)
-        gen_loss = loss_fn(emb_shifted[:,:gen_crop,:], generated[:,:gen_crop,:]).item()
+        generated = model.generate(num_tokens=emb.shape[1], condition=combined_cond)
+        gen_loss = loss_fn(generated, emb).item()
 
         losses.append([loss, gen_loss])
         
@@ -95,7 +94,7 @@ def train():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
+                                  shuffle=False,
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
