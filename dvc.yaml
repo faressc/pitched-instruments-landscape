@@ -26,6 +26,7 @@ stages:
     - source/train_transformer.py
     - source/transformer.py
     # - data/processed/ # Takes to long to hash
+    - out/vae/
     params:
     - train
     outs:

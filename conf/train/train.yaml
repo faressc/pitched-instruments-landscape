@@ -7,3 +7,4 @@ pitch: -1
 
 defaults:
   - vae: vae
+  - transformer: transformer

@@ -1,155 +1,158 @@
-import random
-import numpy as np
-import gc
-import matplotlib.pyplot as plt
 import os
+from pathlib import Path
+
+from dataset import MetaAudioDataset
+
+from utils import logs, config
+import utils.ffmpeg_helper as ffmpeg
+from transformer import GesamTransformer
+
+from omegaconf import OmegaConf
+from hydra.utils import instantiate
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-
 from transformers import EncodecModel
 
 import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
 
-from omegaconf import OmegaConf
-from utils import logs, config
-from hydra.utils import instantiate
-
-from dataset import MetaAudioDataset
-
-from transformer import GesamTransformer
-
-import utils.ffmpeg_helper as ffmpeg
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
-def eval_model(model, cond_model, dl, device, num_batches):
+def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
+    model.eval()
     losses = []
     for b, data in enumerate(dl):
-        dy = data["embeddings"].to(device)
+        emb = data["embeddings"].to(device)
 
-        vae_output = cond_model.forward(dy)
+        vae_output = cond_model.forward(emb)
         timbre_cond = vae_output[1].detach()
         pitch_cond = vae_output[4].detach()
 
         # concatenating timbre and pitch condition for putting into encoder of transformer
         combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
-        dx = dy[:,:-1,:]
-        dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1).detach()
+        emb_shifted = emb[:,:-1,:]
+        emb_shifted = torch.cat((torch.zeros((emb_shifted.shape[0],1,128)).to(device), emb_shifted),dim=1).detach()
 
-        logits = model.forward(xdec=dx, xenc=combined_cond)
-        loss = F.mse_loss(logits,dy).item()
+        # Calculate the loss the way we did in training with triangular mask
+        logits = model.forward(xdec=emb_shifted, xenc=combined_cond)
+        loss = loss_fn(logits, emb).item()
 
-        losses.append(loss)
-        
-        # calculate the mean abs error for a generated embedding (and not only the train loss)
-        # takes a lot of time!
+        # Generate the whole sequence with the model
         gen_crop = 150
         generated = model.generate(gen_crop, combined_cond)
-        gen_loss = F.mse_loss(dx[:,:gen_crop,:], generated[:,:gen_crop,:]).item()
+        gen_loss = loss_fn(emb_shifted[:,:gen_crop,:], generated[:,:gen_crop,:]).item()
 
-        # losses.append(gen_loss)
+        losses.append([loss, gen_loss])
         
         if b > num_batches:
             break
+
+    loss, gen_loss = np.mean(losses, axis=0)
         
-    return np.mean(losses).item()
+    return loss, gen_loss
 
 def train():
-    # Load data
     print("##### Starting Train Stage #####")
-    os.makedirs("out/checkpoints", exist_ok=True)
+    os.makedirs("out/transformer/checkpoints", exist_ok=True)
+
+    # Check how many CUDA GPUs are available
+    gpu_count = torch.cuda.device_count()
+    print(f"Number of available GPUs: {gpu_count}")
+
+    # Print GPU details if available
+    if gpu_count > 0:
+        for i in range(gpu_count):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
     cfg = OmegaConf.load("params.yaml")
+
+    epochs = cfg.train.transformer.epochs
+
+    # change learning rate at several points during training
+    lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
+    lr_change_multiplier = 0.5
     
     # Set a random seed for reproducibility across all devices. Add more devices if needed
     config.set_random_seeds(cfg.train.random_seed)
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.auto_device()
 
-
-    epochs = 2000 # num passes through the dataset
-
-    learning_rate = 1e-4 # max learning rate
-    weight_decay = 0.05
-    beta1 = 0.9
-    beta2 = 0.95
-    
-    
-    batch_size = 64
-
-    # change learning rate at several points during training
-    lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
-    lr_change_multiplier = 0.5
-
-
-
-    eval_num_samples = 5000
-    eval_epoch = 200
-
-    
-    eval_epochs = []
-    eval_train_losses = []
-    eval_val_losses = []
-
-
-
-    transformer_config = dict(
-        block_size = 300,
-        input_dimension = 128,
-        internal_dimension = 512,
-        feedforward_dimension = 2048,
-        n_layer_encoder = 8,
-        n_layer_decoder = 11,
-        n_head = 8,
-        dropout = 0.0
-    )
-
-    print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=2, has_audio=False)
+    print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=2, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=2, has_audio=False)
+    print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=2, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
+    print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=batch_size,
+                                  batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
+                                  shuffle=True,
                                   )
 
+    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
-                                  batch_size=batch_size,
+                                  batch_size=cfg.train.vae.batch_size,
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
                                   shuffle=False,
                                 )
     
-    
+    print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
+
+    transformer_config = dict(
+        block_size = cfg.train.transformer.block_size,
+        input_dimension = cfg.train.transformer.input_dimension,
+        internal_dimension = cfg.train.transformer.internal_dimension,
+        feedforward_dimension = cfg.train.transformer.feedforward_dimension,
+        n_layer_encoder = cfg.train.transformer.n_layer_encoder,
+        n_layer_decoder = cfg.train.transformer.n_layer_decoder,
+        n_head = cfg.train.transformer.n_head,
+        dropout = cfg.train.transformer.dropout
+    )
+
+    print(f"Creating the transformer model with config: {transformer_config}")
     model = GesamTransformer(transformer_config=transformer_config, device=device)
-    model.to(device)
     
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1,beta2))
+    print(f"Creating the optimizer with learning_rate: {cfg.train.transformer.learning_rate}, weight_decay: {cfg.train.transformer.weight_decay}, betas: {cfg.train.transformer.betas}")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.train.transformer.learning_rate, weight_decay=cfg.train.transformer.weight_decay, betas=cfg.train.transformer.betas)
+
+    print("Instantiating the loss function")
+    loss_fn = instantiate(cfg.train.transformer.loss_fn)
     
-    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
-    condition_model = torch.load('out/checkpoints/vae.torch', weights_only=False).to(device)
+    print(f"Loading the condition model from path: {cfg.train.transformer.condition_model_path}")
+    condition_model = torch.load(cfg.train.transformer.condition_model_path, weights_only=False).to(device)
     condition_model.eval()
 
-    combined_cond_for_generation = torch.Tensor()
-    for e in range(epochs):
-        model.train()
-        print('start epoch %d' % e)
+    encodec_model = None
+    if cfg.train.transformer.hear_interval > 0:
+        print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
+        encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
+        encodec_model.eval()
 
-        for _, data in enumerate(tqdm.tqdm(train_dataloader)):
-            # autoregressive loss transformer trainingi
+    combined_cond_for_generation = torch.Tensor()
+    print("######## Training ########")
+    for epoch in range(epochs):
+        #
+        # training epoch
+        #
+        model.train()
+        for i, data in enumerate(tqdm.tqdm(train_dataloader)):
+            # autoregressive loss transformer training
             optimizer.zero_grad()
             
-            dy = data["embeddings"].to(device)
-
-            vae_output = condition_model.forward(dy)
+            emb = data["embeddings"].to(device)
+            
+            vae_output = condition_model.forward(emb)
             timbre_cond = vae_output[1].detach()
             pitch_cond = vae_output[4].detach()
 
@@ -161,51 +164,48 @@ def train():
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
             combined_cond_for_generation = combined_cond
 
-            # dx is the transposed input vector (in time dimension) for autoregressive training
-            dx = dy[:,:-1,:]
-            dx = torch.cat((torch.zeros((dx.shape[0],1,128)).to(device),dx),dim=1).detach()
+            # emb_shifted is the transposed input vector (in time dimension) for autoregressive training
+            emb_shifted = emb[:,:-1,:]
+            emb_shifted = torch.cat((torch.zeros((emb_shifted.shape[0],1,128)).to(device),emb_shifted),dim=1).detach()
             
-            logits = model.forward(xdec=dx, xenc=combined_cond)
-            loss = F.mse_loss(logits,dy)
+            logits = model.forward(xdec=emb_shifted, xenc=combined_cond)
+            loss = loss_fn(logits, emb)
             
             loss.backward()
             optimizer.step()
-            # print(loss)
             
         # adapt learning rate
-        if e in map(lambda x: int(epochs*x), lr_change_intervals):
+        if epoch in map(lambda x: int(epochs*x), lr_change_intervals):
             # adapt learning rate with multiplier
             for param_group in optimizer.param_groups:
                 param_group['lr'] *= lr_change_multiplier
-            print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], e))
+            print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], epoch))
 
-        if (e + 1) % eval_epoch == 0 and e > 0:
-            model.eval()
-            print('evaluate model after epoch %d' % (e,))
-
-            train_loss = eval_model(model, condition_model, train_dataloader, device=device, num_batches=eval_num_samples/batch_size)
-            val_loss = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=eval_num_samples/batch_size)
-            
-            print('######## train loss: %.6f (epoch %d)' % (train_loss, e))
-            print('######## val loss: %.6f (epoch %d)' % (val_loss, e))
+        model.eval()
+        if (epoch % cfg.train.transformer.eval_interval) == 0 and epoch > 0:
             print()
+            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=25, loss_fn=loss_fn)
+            print("TRAIN: Epoch %d: Train loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
+
+            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=25, loss_fn=loss_fn)
+            print("VALID: Epoch %d: Val loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
 
             # if len(eval_val_losses) > 0 and val_loss < min(eval_val_losses): 
             #     print('save new best model')
-            #     torch.save(model, 'out/checkpoints/transformer.torch')
+            #     torch.save(model, 'out/transformer/checkpoints/transformer.torch')
             
-            eval_epochs.append(e)
-            eval_train_losses.append(train_loss)
-            eval_val_losses.append(val_loss)
+            # eval_epochs.append(epoch)
+            # eval_train_losses.append(train_loss)
+            # eval_val_losses.append(val_loss)
             
             
-            plt.close(0)
-            plt.figure(0)
-            plt.plot(eval_epochs, eval_train_losses, marker='o', linestyle='--', label='train')
-            plt.plot(eval_epochs, eval_val_losses, marker='o', linestyle='--', label='val')
-            plt.legend()
-            plt.title('Train and Validation Losses after epoch %d' % e)
-            plt.savefig('out/trainsformer_losses.png')
+            # plt.close(0)
+            # plt.figure(0)
+            # plt.plot(eval_epochs, eval_train_losses, marker='o', linestyle='--', label='train')
+            # plt.plot(eval_epochs, eval_val_losses, marker='o', linestyle='--', label='val')
+            # plt.legend()
+            # plt.title('Train and Validation Losses after epoch %d' % epoch)
+            # plt.savefig('out/transformer/trainsformer_losses.png')
 
 
             num_generate = 2
@@ -226,17 +226,17 @@ def train():
             
             plt.close()
             plt.imshow(generated[0].cpu(), vmin=0.0, vmax=1.0)
-            plt.savefig('out/transformer_generated.png')          
+            plt.savefig('out/transformer/transformer_generated.png')          
             plt.close()  
-            plt.imshow(dy[0].cpu(), vmin=0.0, vmax=1.0)
-            plt.savefig('out/transformer_gt.png')      
+            plt.imshow(emb[0].cpu(), vmin=0.0, vmax=1.0)
+            plt.savefig('out/transformer/transformer_gt.png')      
             emb_pred_for_audio = MetaAudioDataset.denormalize_embedding(generated)
             decoded = encodec_model.decoder((emb_pred_for_audio).permute(0,2,1))
             decoded = decoded.detach().cpu().numpy()
             decoded_int = np.int16(decoded * (2**15 - 1))
             for ind in range(num_generate):
                 decoded_sample = decoded_int[ind]
-                ffmpeg.write_audio_file(decoded_sample, "out/transformer_generated_%d.wav" % (ind,), 24000)
+                ffmpeg.write_audio_file(decoded_sample, "out/transformer/transformer_generated_%d.wav" % (ind,), 24000)
 
 
 if __name__ == '__main__':

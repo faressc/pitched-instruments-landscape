@@ -1,0 +1,25 @@
+epochs: 2000
+learning_rate: 1e-4  # max learning rate
+weight_decay: 0.05
+betas: [0.9, 0.95]  # adam betas
+batch_size: 64
+eval_interval: 200
+visualize_interval: 25
+hear_interval: 25
+save_interval: 50
+
+# transformer config
+block_size: 300
+input_dimension: 128
+internal_dimension: 512
+feedforward_dimension: 2048
+n_layer_encoder: 8
+n_layer_decoder: 11
+n_head: 8
+dropout: 0.0
+
+condition_model_path: "out/vae/checkpoints/vae_epoch_50.torch"
+
+loss_fn:
+  _target_: torch.nn.MSELoss
+  reduction: mean
