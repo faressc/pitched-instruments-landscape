@@ -139,10 +139,6 @@ def main():
     cfg = OmegaConf.load("params.yaml")
 
     epochs = cfg.train.vae.epochs
-    
-    eval_epoch = 1
-    visu_epoch = 5
-    hear_epoch = 5
 
     # change learning rate at several points during training
     lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
@@ -191,9 +187,10 @@ def main():
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
-    print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
-    encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
-    encodec_model.eval()
+    if cfg.train.vae.hear_interval > 0:
+        print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
+        encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
+        encodec_model.eval()s
 
     writer = None
     if LOG_TENSORBOARD:
@@ -236,7 +233,7 @@ def main():
         # evaluate model
         # 
         vae.eval()
-        if (epoch % eval_epoch) == 0 and epoch > 0:
+        if (epoch % cfg.train.vae.eval_interval) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
             losses = eval_model(vae, train_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
@@ -251,11 +248,11 @@ def main():
                 writer.add_scalar("classifier_loss", losses[2], epoch)
                 writer.add_scalar("classifier_accuracy", losses[3], epoch)
 
-        if (epoch % visu_epoch) == 0 and epoch > 0:
+        if (epoch % cfg.train.vae.visualize_interval) == 0 and epoch > 0:
             visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer)
             visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val', num_examples=500, epoch=epoch, writer=writer)
 
-        if (epoch % hear_epoch) == 0 and epoch > 0:
+        if (epoch % cfg.train.vae.hear_interval) == 0 and epoch > 0:
             hear_model(vae, encodec_model, train_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='train', epoch=epoch, writer=writer)
             hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='val', epoch=epoch, writer=writer)
 
