@@ -26,12 +26,14 @@ from torch.utils.data import DataLoader, random_split
 
 from transformers import EncodecModel
 
+import tqdm
+
 import utils.ffmpeg_helper as ffmpeg
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
@@ -41,7 +43,6 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
     cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb = emb.view(-1,128,300).permute(0,2,1)
         emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
         gt_cls = data['metadata']['pitch'].to(device)
         rec_loss, reg_loss, cls_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, note_cls, gt_cls, loss_fn.keywords['epochs'])
@@ -68,7 +69,6 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     families = np.zeros((0))
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb = emb.view(-1,128,300).permute(0,2,1)
         emb_pred, mean, var, note_cls, one_hot  = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
@@ -108,7 +108,6 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     model.eval()
     for i, data in enumerate(data_loader):
         emb = data['embeddings'][:num_examples].to(device)
-        emb = emb.view(-1,128,300).permute(0,2,1)
         emb = emb.to(device)
         emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
@@ -120,8 +119,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
             ffmpeg.write_audio_file([decoded_sample_int], "out/vae/%s_generated_%d.wav" % (name_prefix, ind), 24000)
             if writer is not None:
                 writer.add_audio(f"Generated/{name_prefix}_{ind}", decoded_sample, epoch, sample_rate=24000)
-
-        del emb_pred, mean, var, note_cls, one_hot
+        break
 
 def main():
     print("##### Starting Train Stage #####")
@@ -222,11 +220,10 @@ def main():
         # training epoch
         #
         vae.train()
-        for i, data in enumerate(train_dataloader):
+        for i, data in enumerate(tqdm.tqdm(train_dataloader)):
             optimizer.zero_grad()
             
-            emb = data['embeddings'].view(-1,128,300).permute(0,2,1)
-            emb = emb.to(device)
+            emb = data['embeddings'].to(device)
             emb_pred, mean, var, note_cls, one_hot = vae.forward(emb)
             
             rec_loss, reg_loss, cls_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, note_cls, data['metadata']['pitch'].to(device), epoch)

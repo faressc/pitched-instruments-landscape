@@ -45,9 +45,22 @@ class ConditionConvVAE(nn.Module):
             ))
             setattr(self, 'enc_lin_norm{}'.format(i), nn.LayerNorm(linears[i+1]))
 
-        self.mean = nn.Linear(linears[-2], linears[-1])
-        self.var = nn.Linear(linears[-2], linears[-1])
-        self.note_cls = nn.Linear(linears[-2], num_notes)
+
+        self.head_size = linears[-2]//2
+
+
+        self.classification_head = torch.nn.Linear(linears[-2], self.head_size)
+        self.regression_head = torch.nn.Linear(linears[-2], self.head_size)
+
+        self.cla_head_norm = nn.LayerNorm(self.head_size)
+        self.reg_head_norm = nn.LayerNorm(self.head_size)
+
+        # fed by regression head
+        self.mean = nn.Linear(self.head_size, linears[-1])
+        self.var = nn.Linear(self.head_size, linears[-1])
+        
+        # fed by classification head
+        self.note_cls = nn.Linear(self.head_size, num_notes)
 
         dec_linears = linears[::-1]
         dec_channels = channels[::-1]
@@ -142,10 +155,18 @@ class ConditionConvVAE(nn.Module):
             x = self.relu(x)
             x = self.dropout(x)
 
-        x[:self.linears[-1]]
-        mean = self.mean(x)
-        var = self.var(x)
-        note_cls = self.note_cls(x)
+        x_reg = self.regression_head(x)
+        x_reg = self.reg_head_norm(x_reg)
+        x_reg = self.relu(x_reg)
+
+        x_cla = self.classification_head(x)
+        x_cla = self.cla_head_norm(x_cla)
+        x_cla = self.relu(x_cla)
+
+        mean = self.mean(x_reg)
+        var = self.var(x_reg)
+        
+        note_cls = self.note_cls(x_cla)
        
         return mean, var, note_cls
 

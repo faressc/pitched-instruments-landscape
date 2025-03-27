@@ -100,7 +100,7 @@ class MetaAudioDataset(Dataset):
         embeddings = np.frombuffer(meta_audio_file.encoder_outputs.embeddings.data, dtype=np.float32).copy()
         embeddings = embeddings.reshape(meta_audio_file.encoder_outputs.embeddings.shape)
 
-        embeddings = self.normalize_embedding(embeddings)
+        embeddings = self.preprocess_embedding(embeddings)
 
         datapoint = {
             "audio_data": audio_data,
@@ -109,6 +109,9 @@ class MetaAudioDataset(Dataset):
         }
         return datapoint
 
+    @staticmethod
+    def preprocess_embedding(emb):
+        return MetaAudioDataset.normalize_embedding(emb.squeeze().swapaxes(0,1))
     @staticmethod
     def normalize_embedding(emb):
         return (emb + 25.) / (33.5 + 25.)

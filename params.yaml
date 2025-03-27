@@ -20,20 +20,8 @@ train:
   db_path_test: data/processed/test
   db_path_train: data/processed/train
   db_path_valid: data/processed/valid
-  num_workers: 0
-  pitch:
-  - 53
-  - 54
-  - 55
-  - 56
-  - 57
-  - 58
-  - 59
-  - 60
-  - 61
-  - 62
-  - 63
-  - 64
+  num_workers: 24
+  pitch: -1
   random_seed: 42
   vae:
     batch_size: 256
@@ -46,7 +34,7 @@ train:
       batch_size: 256
       cls_loss_fn:
         _target_: torch.nn.CrossEntropyLoss
-      epochs: 2000
+      epochs: 150
       loss_fn:
         _target_: torch.nn.MSELoss
         reduction: sum
@@ -59,7 +47,9 @@ train:
     - 2048
     - 4096
     dropout_ratio: 0.2
-    epochs: 2000
+    epochs: 150
+    eval_interval: 2
+    hear_interval: 2
     input_crop: 150
     linears:
     - 16384
@@ -70,4 +60,6 @@ train:
     - 512
     - 2
     lr: 0.0001
+    save_interval: 2
+    visualize_interval: 2
     wd: 0.05

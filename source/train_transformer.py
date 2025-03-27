@@ -22,31 +22,11 @@ from transformer import GesamTransformer
 
 import utils.ffmpeg_helper as ffmpeg
 
-
-# calculate loss of model for a given dataset (executed during training)
-@torch.no_grad()
-def det_loss_testing(ds, model, condition_model):
-    dl = DataLoader(ds, batch_size=batch_size, shuffle=False) # get new dataloader because we want random sampling here!
-    losses = []
-    gen_losses = []
-    gen_loss_crop = 150
-    for dx, dy, _, _ in dl:
-        dx = dx.to(device)
-        dy = dy.to(device)
-        logits, loss = model.predict(condition_model, dx, dy)
-        losses.append(loss.cpu().detach().item())    
-        condition_bottleneck = condition_model(dx,True)[0].detach()
-        gx = model.generate(gen_loss_crop, condition_bottleneck)
-        gen_loss = torch.mean(torch.abs(dx[:,:gen_loss_crop,:]-gx[:,:gen_loss_crop,:])).item()
-        gen_losses.append(gen_loss)
-    return np.mean(losses), np.mean(gen_losses)
-
 @torch.no_grad()
 def eval_model(model, cond_model, dl, device, num_batches):
     losses = []
     for b, data in enumerate(dl):
         dy = data["embeddings"].to(device)
-        dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
 
         vae_output = cond_model.forward(dy)
         timbre_cond = vae_output[1].detach()
@@ -168,7 +148,6 @@ def train():
             optimizer.zero_grad()
             
             dy = data["embeddings"].to(device)
-            dy = dy.squeeze().swapaxes(1,2) # shape batch, time, features
 
             vae_output = condition_model.forward(dy)
             timbre_cond = vae_output[1].detach()
