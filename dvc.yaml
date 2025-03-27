@@ -13,6 +13,7 @@ stages:
   train_vae:
     cmd: python -u source/train_vae.py
     deps:
+    - source/dataset.py
     - source/train_vae.py
     - source/vae.py
     # - data/processed/ # Takes to long to hash
@@ -23,6 +24,7 @@ stages:
   train_transformer:
     cmd: python -u source/train_transformer.py
     deps:
+    - source/dataset.py
     - source/train_transformer.py
     - source/transformer.py
     # - data/processed/ # Takes to long to hash
