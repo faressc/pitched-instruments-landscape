@@ -250,7 +250,7 @@ def main():
         if (epoch % cfg.train.vae.eval_interval) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
-            losses = eval_model(vae, train_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
+            losses = eval_model(vae, train_dataloader, device, 25, calculate_vae_loss, cfg.train.vae.input_crop)
             print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             if writer is not None:
                 writer.add_scalar("train/reconstruction_loss", losses[0], epoch)
@@ -258,7 +258,7 @@ def main():
                 writer.add_scalar("train/classifier_loss", losses[2], epoch)
                 writer.add_scalar("train/classifier_accuracy", losses[3], epoch)
 
-            losses = eval_model(vae, valid_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
+            losses = eval_model(vae, valid_dataloader, device, 25, calculate_vae_loss, cfg.train.vae.input_crop)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             if writer is not None:
                 writer.add_scalar("valid/reconstruction_loss", losses[0], epoch)
