@@ -1,6 +1,7 @@
 import utils.debug
 
 import os
+from pathlib import Path
 
 from dataset import MetaAudioDataset
 from dataset import FilterPitchSampler
@@ -173,7 +174,7 @@ def main():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
+                                  shuffle=False,
                                 )
     
     print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
@@ -187,16 +188,29 @@ def main():
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
+    encodec_model = None
     if cfg.train.vae.hear_interval > 0:
         print(f"Creating the encodec model with model_name: {cfg.preprocess.model_name}")
         encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
-        encodec_model.eval()s
+        encodec_model.eval()
 
     writer = None
     if LOG_TENSORBOARD:
         tensorboard_path = logs.return_tensorboard_path()
-        metrics = {'reconstruction_loss': None, 'regularisation_loss': None, 'classifier_loss': None, 'classifier_accuracy': None}
-        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics)
+        path_parts = Path(tensorboard_path).parts
+        tensorboard_path = str(Path(*path_parts[:-1]) / "vae" / path_parts[-1])
+        remote_dir = Path("logs/tensorboard/vae")
+        remote_dir = logs.construct_remote_dir(remote_dir)
+        metrics = {'train/reconstruction_loss': None,
+                   'train/regularisation_loss': None,
+                   'train/classifier_loss': None, 
+                   'train/classifier_accuracy': None,
+                   'valid/reconstruction_loss': None,
+                   'valid/regularisation_loss': None,
+                   'valid/classifier_loss': None,
+                   'valid/classifier_accuracy': None}
+
+        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, remote_dir=remote_dir)
 
         sample_inputs = torch.randn(1, 300, 128)
         vae.eval()
@@ -238,29 +252,38 @@ def main():
             print()
             losses = eval_model(vae, train_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
             print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
+            if writer is not None:
+                writer.add_scalar("train/reconstruction_loss", losses[0], epoch)
+                writer.add_scalar("train/regularisation_loss", losses[1], epoch)
+                writer.add_scalar("train/classifier_loss", losses[2], epoch)
+                writer.add_scalar("train/classifier_accuracy", losses[3], epoch)
+
             losses = eval_model(vae, valid_dataloader, device, 50, calculate_vae_loss, cfg.train.vae.input_crop)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
-            torch.save(vae, 'out/vae/checkpoints/vae.torch')
-
             if writer is not None:
-                writer.add_scalar("reconstruction_loss", losses[0], epoch)
-                writer.add_scalar("regularisation_loss", losses[1], epoch)
-                writer.add_scalar("classifier_loss", losses[2], epoch)
-                writer.add_scalar("classifier_accuracy", losses[3], epoch)
+                writer.add_scalar("valid/reconstruction_loss", losses[0], epoch)
+                writer.add_scalar("valid/regularisation_loss", losses[1], epoch)
+                writer.add_scalar("valid/classifier_loss", losses[2], epoch)
+                writer.add_scalar("valid/classifier_accuracy", losses[3], epoch)
 
         if (epoch % cfg.train.vae.visualize_interval) == 0 and epoch > 0:
             visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer)
             visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='val', num_examples=500, epoch=epoch, writer=writer)
 
-        if (epoch % cfg.train.vae.hear_interval) == 0 and epoch > 0:
-            hear_model(vae, encodec_model, train_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='train', epoch=epoch, writer=writer)
-            hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='val', epoch=epoch, writer=writer)
+        if cfg.train.vae.hear_interval > 0:
+            if (epoch % cfg.train.vae.hear_interval) == 0 and epoch > 0:
+                hear_model(vae, encodec_model, train_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='train', epoch=epoch, writer=writer)
+                hear_model(vae, encodec_model, valid_dataloader, device, cfg.train.vae.input_crop, 5, name_prefix='val', epoch=epoch, writer=writer)
+
+        if (epoch % cfg.train.vae.save_interval) == 0 and epoch > 0:
+            print("Saving model at epoch %d" % (epoch))
+            torch.save(vae, 'out/vae/checkpoints/vae_epoch_%d.torch' % (epoch))
 
         if writer is not None:
             writer.step()
             
     print("Training completed. Saving the model.")
-    torch.save(vae, 'out/vae/checkpoints/vae.torch')
+    torch.save(vae, 'out/vae/checkpoints/vae_final_epoch_%d.torch' % (epochs))
     if writer is not None:
         writer.close()
     

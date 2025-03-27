@@ -156,7 +156,7 @@ class CustomSummaryWriter(SummaryWriter):
         os.system(f"rsync -rv --inplace --progress {self.log_dir} {self.remote_dir}")
 
 
-def return_tensorboard_path() -> PosixPath:
+def return_tensorboard_path() -> Path:
     """
     Returns the path to the TensorBoard logs directory for the current experiment.
     The path is constructed using the default directory, current datetime, and DVC experiment name.
@@ -171,10 +171,23 @@ def return_tensorboard_path() -> PosixPath:
     tensorboard_path = Path(
         f"{default_dir}/logs/tensorboard/{current_datetime}_{dvc_exp_name}"
     )
-    tensorboard_path.mkdir(parents=True, exist_ok=True)
 
     return tensorboard_path
 
+def construct_remote_dir(remote_dir: Union[Path, str]) -> str:
+    """
+    Constructs the remote directory path based on the provided remote directory string.
+    This method is used to override the default remote directory construction.
+    """
+    tensorboard_host_dir = config.get_env_variable("TUSTU_TENSORBOARD_HOST_DIR")
+    tensorboard_host = config.get_env_variable("TUSTU_TENSORBOARD_HOST")
+    if isinstance(remote_dir, str):
+        remote_dir = Path(remote_dir)
+    tensorboard_host_savepath = Path(
+        f'{tensorboard_host_dir}/{config.get_env_variable("TUSTU_PROJECT_NAME")}/{remote_dir}'
+    )
+    os.system(f"ssh {tensorboard_host} 'mkdir -p {tensorboard_host_savepath}'")
+    return f"{tensorboard_host}:{tensorboard_host_savepath}"
 
 def copy_tensorboard_logs() -> str:
     """
