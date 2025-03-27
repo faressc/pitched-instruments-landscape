@@ -33,7 +33,7 @@ import utils.ffmpeg_helper as ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
@@ -95,8 +95,8 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
 
     if writer is not None:
-        writer.add_figure(f"Latent_visualization/{name_prefix}", fig2, epoch)
-        writer.add_figure(f"Embedding_comparison/{name_prefix}", fig1, epoch)
+        writer.add_figure(f"{name_prefix}/latent_visualization", fig2, epoch)
+        writer.add_figure(f"{name_prefix}/embedding_comparison", fig1, epoch)
 
     plt.close(1)  # Schließt die bestehende Figur mit Nummer 1
     plt.close(2)
@@ -118,7 +118,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
             decoded_sample_int = np.array(decoded_sample * (2**15 - 1), dtype=np.int16)
             ffmpeg.write_audio_file([decoded_sample_int], "out/vae/%s_generated_%d.wav" % (name_prefix, ind), 24000)
             if writer is not None:
-                writer.add_audio(f"Generated/{name_prefix}_{ind}", decoded_sample, epoch, sample_rate=24000)
+                writer.add_audio(f"{name_prefix}/generated_{ind}", decoded_sample, epoch, sample_rate=24000)
         break
 
 def main():
@@ -215,7 +215,7 @@ def main():
         writer.add_graph(vae, sample_inputs.to(device))
 
     print("######## Training ########")
-    for epoch in range(epochs):
+    for epoch in range(epochs+1):
         #
         # training epoch
         #

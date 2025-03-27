@@ -1,44 +1,33 @@
-RANDOM_SEED: 42
-SAMPLING_RATE: 24000
-device: cuda
 preprocess:
-  batch_size: 8
+  input_path_train: data/raw/nsynth-train
+  output_path_train: data/processed/train
+  input_path_valid: data/raw/nsynth-valid
+  output_path_valid: data/processed/valid
+  input_path_test: data/raw/nsynth-test
+  output_path_test: data/processed/test
+  model_name: facebook/encodec_24khz
+  sample_rate: 24000
+  initial_db_size: 1
   db_writemap: false
   ext:
   - wav
-  initial_db_size: 1
-  input_path_test: data/raw/nsynth-test
-  input_path_train: data/raw/nsynth-train
-  input_path_valid: data/raw/nsynth-valid
-  model_name: facebook/encodec_24khz
   num_workers: 30
-  output_path_test: data/processed/test
-  output_path_train: data/processed/train
-  output_path_valid: data/processed/valid
-  sample_rate: 24000
+  batch_size: 8
 train:
-  db_path_test: data/processed/test
-  db_path_train: data/processed/train
-  db_path_valid: data/processed/valid
-  num_workers: 24
-  pitch: -1
-  random_seed: 42
   vae:
+    epochs: 150
     batch_size: 256
+    lr: 0.0001
+    wd: 0.05
     betas:
     - 0.9
     - 0.95
-    calculate_vae_loss:
-      _partial_: true
-      _target_: vae.calculate_vae_loss
-      batch_size: 256
-      cls_loss_fn:
-        _target_: torch.nn.CrossEntropyLoss
-      epochs: 150
-      loss_fn:
-        _target_: torch.nn.MSELoss
-        reduction: sum
-      weighted_reproduction: false
+    dropout_ratio: 0.2
+    eval_interval: 5
+    visualize_interval: 25
+    hear_interval: 25
+    save_interval: 50
+    input_crop: 150
     channels:
     - 128
     - 256
@@ -46,11 +35,6 @@ train:
     - 1024
     - 2048
     - 4096
-    dropout_ratio: 0.2
-    epochs: 150
-    eval_interval: 2
-    hear_interval: 2
-    input_crop: 150
     linears:
     - 16384
     - 8192
@@ -59,7 +43,47 @@ train:
     - 1024
     - 512
     - 2
-    lr: 0.0001
-    save_interval: 2
-    visualize_interval: 2
-    wd: 0.05
+    calculate_vae_loss:
+      _target_: vae.calculate_vae_loss
+      _partial_: true
+      epochs: 150
+      weighted_reproduction: false
+      loss_fn:
+        _target_: torch.nn.MSELoss
+        reduction: sum
+      cls_loss_fn:
+        _target_: torch.nn.CrossEntropyLoss
+      batch_size: 256
+  transformer:
+    epochs: 2000
+    learning_rate: 0.0001
+    weight_decay: 0.05
+    betas:
+    - 0.9
+    - 0.95
+    batch_size: 64
+    eval_interval: 200
+    visualize_interval: 200
+    hear_interval: 200
+    save_interval: 1000
+    block_size: 300
+    input_dimension: 128
+    internal_dimension: 512
+    feedforward_dimension: 2048
+    n_layer_encoder: 8
+    n_layer_decoder: 11
+    n_head: 8
+    dropout: 0.0
+    condition_model_path: out/vae/checkpoints/vae_epoch_50.torch
+    loss_fn:
+      _target_: torch.nn.MSELoss
+      reduction: mean
+  db_path_train: data/processed/train
+  db_path_valid: data/processed/valid
+  db_path_test: data/processed/test
+  random_seed: 42
+  num_workers: 0
+  pitch: -1
+SAMPLING_RATE: 24000
+RANDOM_SEED: 42
+device: cuda
