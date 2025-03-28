@@ -154,7 +154,7 @@ def main():
                                   # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
+                                  shuffle=True,
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.transformer.batch_size}")
@@ -189,7 +189,8 @@ def main():
     loss_fn = instantiate(cfg.train.transformer.loss_fn)
     
     print(f"Loading the condition model from path: {cfg.train.transformer.condition_model_path}")
-    condition_model = torch.load(cfg.train.transformer.condition_model_path, weights_only=False).to(device)
+    condition_model = torch.load(cfg.train.transformer.condition_model_path, map_location=device, weights_only=False)
+    condition_model.device = device
     condition_model.eval()
 
     encodec_model = None
