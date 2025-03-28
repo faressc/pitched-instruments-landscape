@@ -66,6 +66,7 @@ dvc cache dir $DEFAULT_DIR/.dvc/cache &&
 # # if [ -f "data/raw.dvc" ]; then
 # echo "Pulling data with DVC..." 
 # dvc pull data/processed;
+# dvc pull out/transformer;
 # # fi &&
 
 # # Run the experiment with passed parameters. Runs with the default parameters if none are passed.

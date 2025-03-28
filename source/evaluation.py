@@ -55,11 +55,12 @@ dl = DataLoader(ds,
 encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
 
-vae = torch.load('out/vae/checkpoints/vae_final_epoch_300.torch', weights_only=False).to(device)
+vae = torch.load('out/vae/checkpoints/vae_final_epoch_150.torch', map_location=device, weights_only=False)
+vae.device = device
 vae.eval()
 
-transformer = torch.load('out/transformer/checkpoints/transformer_epoch_29.torch', weights_only=False).to(device)
-transformer.eval()
+# transformer = torch.load('out/transformer/checkpoints/transformer_epoch_29.torch', weights_only=False).to(device)
+# transformer.eval()
 
 
 pitch_timbres = dict()
@@ -109,3 +110,4 @@ for pt in range(min_pitch, max_pitch+1):
     ax.grid(True, linestyle='--', linewidth=0.5, color='gray')
 
     plt.savefig(os.path.join(eval_dir,'timbres_note_%03d.svg' % (pt,)))
+    plt.close()
