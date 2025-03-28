@@ -51,7 +51,7 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
         cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
         cls_gt.extend(gt_cls.cpu().numpy())
         
-        if i > max_num_batches: # data set can be very large
+        if i >= max_num_batches: # data set can be very large
             break
 
     b = np.array(cls_pred) == np.array(cls_gt)
@@ -68,24 +68,23 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     means = np.zeros((0,2))
     families = np.zeros((0))
     for i, data in enumerate(dl):
-        emb = data['embeddings'].to(device)
+        emb = data['embeddings'][:num_examples].to(device)
         emb_pred, mean, var, note_cls, one_hot  = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
         families = np.concat((families, data['metadata']['family'].numpy()))
-        if len(embs) > num_examples: # skip when ds gets too large
+        if len(embs) >= num_examples: # skip when ds gets too large
             break
 
     
     # plot original embedding and decoded embedding
-    save_index = 1
     fig1, axes1 = plt.subplots(1, 2, figsize=(10, 5), num=1)  # 1 row, 2 columns
     # orig embedding
-    axes1[0].imshow(embs[save_index], vmin=0.0, vmax=1.0)
+    axes1[0].imshow(embs[0], vmin=0.0, vmax=1.0)
     axes1[0].set_title("Original")
     # generated embedding
-    axes1[1].imshow(embs_pred[save_index], vmin=0.0, vmax=1.0)
+    axes1[1].imshow(embs_pred[0], vmin=0.0, vmax=1.0)
     axes1[1].set_title("Generated")
     plt.savefig('out/vae/%s_embedding_comparison.png' % (name_prefix))
 
@@ -108,7 +107,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     model.eval()
     embs_decoded = []
     for i, data in enumerate(data_loader):
-        emb = data['embeddings'].to(device)
+        emb = data['embeddings'][:num_examples].to(device)
         emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
 
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
@@ -118,9 +117,9 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
 
         for element in range(decoded_pred.shape[0]):
             embs_decoded.append(decoded_pred[element])
-            if len(embs_decoded) > num_examples:
+            if len(embs_decoded) >= num_examples:
                 break
-        if len(embs_decoded) > num_examples:
+        if len(embs_decoded) >= num_examples:
             break
 
     for i, decoded in enumerate(embs_decoded):

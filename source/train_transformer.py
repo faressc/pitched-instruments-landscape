@@ -49,7 +49,7 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
 
         losses.append([loss, gen_loss])
         
-        if b > num_batches:
+        if b >= num_batches:
             break
 
     loss, gen_loss = np.mean(losses, axis=0)
@@ -89,7 +89,7 @@ def hear_model(model, cond_model, encodec_model, dl, device, num_examples, name_
     model.eval()
     embs_decoded = []
     for i, data in enumerate(dl):
-        emb = data["embeddings"].to(device)
+        emb = data["embeddings"][:num_examples].to(device)
         vae_output = cond_model.forward(emb)
         timbre_cond = vae_output[1].detach()
         pitch_cond = vae_output[4].detach()
