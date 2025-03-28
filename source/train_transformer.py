@@ -215,7 +215,7 @@ def main():
                    'valid/loss': None,
                    'valid/gen_loss': None}
 
-        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, sync_interval=10, remote_dir=remote_dir)
+        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, sync_interval=cfg.train.transformer.eval_interval, remote_dir=remote_dir)
 
     print("######## Training ########")
     for epoch in range(epochs + 1):
@@ -287,7 +287,7 @@ def main():
             print("Saving model at epoch %d" % (epoch))
             torch.save(model, 'out/transformer/checkpoints/vae_epoch_%d.torch' % (epoch))
 
-        if writer is not None:
+        if writer is not None and epoch > 0:
             writer.step()
             
     print("Training completed. Saving the model.")

@@ -232,7 +232,7 @@ def main():
                    'valid/classifier_loss': None,
                    'valid/classifier_accuracy': None}
 
-        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, remote_dir=remote_dir)
+        writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, sync_interval=cfg.train.vae.eval_interval, remote_dir=remote_dir)
 
         sample_inputs = torch.randn(1, 300, 128)
         vae.eval()
@@ -320,7 +320,7 @@ def main():
             print("Saving model at epoch %d" % (epoch))
             torch.save(vae, 'out/vae/checkpoints/vae_epoch_%d.torch' % (epoch))
 
-        if writer is not None:
+        if writer is not None and epoch > 0:
             writer.step()
             
     print("Training completed. Saving the model.")
