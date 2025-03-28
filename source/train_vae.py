@@ -148,6 +148,7 @@ def main():
     config.set_random_seeds(cfg.train.random_seed)
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.auto_device()
+    device = torch.device("cuda:1")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
