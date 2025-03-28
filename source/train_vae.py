@@ -156,11 +156,11 @@ def main():
     device = config.prepare_device(cfg.train.device)
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=256, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
     # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=256, has_audio=False)
     # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
