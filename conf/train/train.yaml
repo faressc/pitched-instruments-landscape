@@ -4,6 +4,7 @@ db_path_test: data/processed/test
 random_seed: ${RANDOM_SEED}
 num_workers: 0
 pitch: -1
+device: auto
 
 defaults:
   - vae: vae

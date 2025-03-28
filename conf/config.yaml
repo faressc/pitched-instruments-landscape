@@ -4,8 +4,6 @@ SAMPLING_RATE: 24000
 # N_SIGNAL: 131072
 RANDOM_SEED: 42
 
-device: cuda
-
 hydra:
   run:
     dir: .
