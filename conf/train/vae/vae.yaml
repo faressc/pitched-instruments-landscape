@@ -19,7 +19,7 @@ linears: [16384, 8192, 4096, 2048, 1024, 512, 2]
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss
   _partial_: true
-  epochs: ${train.vae.epochs}
+  num_epochs: ${train.vae.epochs}
   weighted_reproduction: false
   loss_fn:
     _target_: torch.nn.MSELoss

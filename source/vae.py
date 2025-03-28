@@ -209,7 +209,7 @@ class ConditionConvVAE(nn.Module):
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, iter, device, epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size):
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device):
     
     b, t, f = x.shape
     
@@ -261,15 +261,24 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, iter, device, epoc
     # print(neighbor_loss)
     # print(spatial_loss)
     # print('')
+
     
-    warmup_ratio = 0.1
-    training_progress = (iter/epochs)
-    warmup_beta = 0.0 if training_progress < warmup_ratio else training_progress * 0.01
+    # # old linear way
+    # warmup_ratio = 0.3
+    # warmup_beta = 0.0 if training_progress < warmup_ratio else training_progress
+
+    
+    training_progress = (current_epoch/num_epochs)
+
+    def regularization_scaling(x):
+        return x**3
 
     rec_beta = 10.
     rep_beta = 1.0
-    spa_beta = 1.0
+    spa_beta = 3.0
     cla_beta = 0.1
     
 
-    return rec_beta * reproduction_loss, warmup_beta * (rep_beta * neighbor_loss + spa_beta * spatial_loss), cla_beta * cls_loss
+    return rec_beta * reproduction_loss, \
+    regularization_scaling(training_progress) * rep_beta * neighbor_loss + spa_beta * spatial_loss, \
+    cla_beta * cls_loss

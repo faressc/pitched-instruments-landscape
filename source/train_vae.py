@@ -36,7 +36,7 @@ import matplotlib.pyplot as plt
 LOG_TENSORBOARD = True
 
 @torch.no_grad()
-def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
+def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch):
     model.eval()
     losses = []
     cls_pred = []
@@ -45,7 +45,20 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop):
         emb = data['embeddings'].to(device)
         emb_pred, mean, var, note_cls, one_hot = model.forward(emb)
         gt_cls = data['metadata']['pitch'].to(device)
-        rec_loss, reg_loss, cls_loss = loss_fn(emb[:,:input_crop,:], emb_pred, mean, var, note_cls, gt_cls, loss_fn.keywords['epochs'])
+                
+        rec_loss, reg_loss, cls_loss = loss_fn(x = emb[:,:input_crop,:], 
+                                                            x_hat = emb_pred, 
+                                                            mean = mean, 
+                                                            var = var, 
+                                                            note_cls = note_cls, 
+                                                            gt_cls = gt_cls, 
+                                                            current_epoch = current_epoch,
+                                                            )
+
+    
+        
+        
+        
         losses.append([rec_loss.item(), reg_loss.item(), cls_loss.item()])
         
         cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
@@ -189,6 +202,7 @@ def main():
     print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
     print("Instantiating the loss functions.")
+    
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
     calculate_vae_loss = partial(calculate_vae_loss, device=device)
 
@@ -232,7 +246,14 @@ def main():
             emb = data['embeddings'].to(device)
             emb_pred, mean, var, note_cls, one_hot = vae.forward(emb)
             
-            rec_loss, reg_loss, cls_loss = calculate_vae_loss(emb[:,:cfg.train.vae.input_crop,:], emb_pred, mean, var, note_cls, data['metadata']['pitch'].to(device), epoch)
+            rec_loss, reg_loss, cls_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:], 
+                                                              x_hat = emb_pred, 
+                                                              mean = mean, 
+                                                              var = var, 
+                                                              note_cls = note_cls, 
+                                                              gt_cls = data['metadata']['pitch'].to(device), 
+                                                              current_epoch = epoch,
+                                                              )
             
             loss = rec_loss + reg_loss + cls_loss
             loss.backward()
@@ -253,7 +274,14 @@ def main():
         if (epoch % cfg.train.vae.eval_interval) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
-            losses = eval_model(vae, train_dataloader, device, 25, calculate_vae_loss, cfg.train.vae.input_crop)
+                        
+            losses = eval_model(model = vae, 
+                                dl = train_dataloader, 
+                                device = device, 
+                                max_num_batches = 25, 
+                                loss_fn = calculate_vae_loss, 
+                                input_crop = cfg.train.vae.input_crop, 
+                                current_epoch=epoch)
             print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             if writer is not None:
                 writer.add_scalar("train/reconstruction_loss", losses[0], epoch)
@@ -261,7 +289,13 @@ def main():
                 writer.add_scalar("train/classifier_loss", losses[2], epoch)
                 writer.add_scalar("train/classifier_accuracy", losses[3], epoch)
 
-            losses = eval_model(vae, valid_dataloader, device, 25, calculate_vae_loss, cfg.train.vae.input_crop)
+            losses = eval_model(model = vae, 
+                                dl = valid_dataloader, 
+                                device = device, 
+                                max_num_batches = 25, 
+                                loss_fn = calculate_vae_loss, 
+                                input_crop = cfg.train.vae.input_crop, 
+                                current_epoch=epoch)
             print("VAL: Epoch %d: Reconstruction loss: %.6f, Regularization Loss: %.6f, Classifier Loss: %.6f, Classifier 0/1 Accuracy: %.6f" % (epoch, losses[0], losses[1], losses[2], losses[3]))
             if writer is not None:
                 writer.add_scalar("valid/reconstruction_loss", losses[0], epoch)
