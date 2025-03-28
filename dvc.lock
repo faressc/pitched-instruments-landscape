@@ -15,20 +15,20 @@ stages:
     params:
       params.yaml:
         preprocess:
-          batch_size: 8
+          input_path_train: data/raw/nsynth-train
+          output_path_train: data/processed/train
+          input_path_valid: data/raw/nsynth-valid
+          output_path_valid: data/processed/valid
+          input_path_test: data/raw/nsynth-test
+          output_path_test: data/processed/test
+          model_name: facebook/encodec_24khz
+          sample_rate: 24000
+          initial_db_size: 1
           db_writemap: false
           ext:
           - wav
-          initial_db_size: 1
-          input_path_test: data/raw/nsynth-test
-          input_path_train: data/raw/nsynth-train
-          input_path_valid: data/raw/nsynth-valid
-          model_name: facebook/encodec_24khz
           num_workers: 30
-          output_path_test: data/processed/test
-          output_path_train: data/processed/train
-          output_path_valid: data/processed/valid
-          sample_rate: 24000
+          batch_size: 8
     outs:
     - path: data/processed/
       hash: md5
