@@ -168,6 +168,10 @@ def main():
     # Prepare the requested device for training. Use cpu if the requested device is not available 
     device = config.prepare_device(cfg.train.device)
 
+    # Make PyTorch operations deterministic for reproducibility
+    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
     # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing

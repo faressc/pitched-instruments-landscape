@@ -1,13 +1,13 @@
-epochs: 150
+epochs: 200
 batch_size: 256
 lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
-dropout_ratio: 0.2
+dropout_ratio: 0.
 eval_interval: 5
-visualize_interval: 25
-hear_interval: 25
-save_interval: 50
+visualize_interval: 10
+hear_interval: 10
+save_interval: 20
 
 # crop the time dimension to this length (150 -> input_crop)
 input_crop: 150
