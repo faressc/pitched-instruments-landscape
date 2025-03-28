@@ -169,7 +169,7 @@ def main():
     device = config.prepare_device(cfg.train.device)
 
     # Make PyTorch operations deterministic for reproducibility
-    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
