@@ -1,12 +1,12 @@
-epochs: 2000
+epochs: 200
+batch_size: 128
 learning_rate: 1e-4  # max learning rate
 weight_decay: 0.05
 betas: [0.9, 0.95]  # adam betas
-batch_size: 256
-eval_interval: 200
-visualize_interval: 200
-hear_interval: 200
-save_interval: 1000
+eval_interval: 5
+visualize_interval: 10
+hear_interval: 10
+save_interval: 25
 
 # transformer config
 block_size: 300
