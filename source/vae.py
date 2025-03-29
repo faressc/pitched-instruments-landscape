@@ -61,6 +61,18 @@ class ConditionConvVAE(nn.Module):
         
         # fed by classification head
         self.note_cls = nn.Linear(self.head_size, num_notes)
+        
+        self.cls_head0 = nn.Linear(linears[-1], 4)
+        self.cls_head1 = nn.Linear(4, 8)
+        self.cls_head2 = nn.Linear(8, 16)
+        self.cls_head3 = nn.Linear(16, 32)
+        self.cls_head_out = nn.Linear(32, 11)
+
+        self.cls_head0_norm = nn.LayerNorm(4)
+        self.cls_head1_norm = nn.LayerNorm(8)
+        self.cls_head2_norm = nn.LayerNorm(16)
+        self.cls_head3_norm = nn.LayerNorm(32)
+
 
         dec_linears = linears[::-1]
         dec_channels = channels[::-1]
@@ -111,7 +123,7 @@ class ConditionConvVAE(nn.Module):
 
     def forward(self, input, encoder_only=False):
         input = input.to(self.device)
-        mean, logvar, note_cls = self.encode(input)  # Assume var is actually logvar
+        mean, logvar, note_cls, cls_head = self.encode(input)  # Assume var is actually logvar
 
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
@@ -127,13 +139,13 @@ class ConditionConvVAE(nn.Module):
 
         # Reparameterization trick
         if encoder_only:
-            return mean, logvar, note_cls, one_hot
+            return mean, logvar, note_cls, one_hot, cls_head
         
         x = torch.cat((x,one_hot), dim=1)
 
         x = self.decode(x)
         
-        return x, mean, logvar, note_cls, one_hot
+        return x, mean, logvar, note_cls, one_hot, cls_head
 
 
     def encode(self, x):
@@ -167,8 +179,18 @@ class ConditionConvVAE(nn.Module):
         var = self.var(x_reg)
         
         note_cls = self.note_cls(x_cla)
-       
-        return mean, var, note_cls
+        
+        cls_head = self.cls_head0(mean)
+        cls_head = self.cls_head0_norm(cls_head)
+        cls_head = self.cls_head1(cls_head)
+        cls_head = self.cls_head1_norm(cls_head)
+        cls_head = self.cls_head2(cls_head)
+        cls_head = self.cls_head2_norm(cls_head)
+        cls_head = self.cls_head3(cls_head)
+        cls_head = self.cls_head3_norm(cls_head)
+        cls_head = self.cls_head_out(cls_head)
+        
+        return mean, var, note_cls, cls_head
 
     def decode(self, x):
         x = x.to(self.device)
@@ -209,12 +231,14 @@ class ConditionConvVAE(nn.Module):
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device):
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device):
     
     b, t, f = x.shape
     
     
     cls_loss = cls_loss_fn(note_cls, gt_cls)
+    
+    instr_loss = cls_loss_fn(cls_head, gt_inst)
     
     #
     # reproduction loss
@@ -277,8 +301,10 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, current_epoch, num
     rep_beta = 1.0
     spa_beta = 3.0
     cla_beta = 0.1
+    inst_beta = 0.1
     
-
     return rec_beta * reproduction_loss, \
-    regularization_scaling(training_progress) * rep_beta * neighbor_loss + spa_beta * spatial_loss, \
-    cla_beta * cls_loss
+    rep_beta * regularization_scaling(training_progress) * neighbor_loss, \
+    spa_beta * spatial_loss, \
+    cla_beta * cls_loss, \
+    inst_beta * instr_loss

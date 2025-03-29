@@ -33,7 +33,7 @@ cfg = OmegaConf.load("params.yaml")
 # Set a random seed for reproducibility across all devices. Add more devices if needed
 config.set_random_seeds(cfg.train.random_seed)
 # Prepare the requested device for training. Use cpu if the requested device is not available 
-device = config.auto_device()
+device = config.prepare_device(cfg.train.device)
 
 print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
 ds = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
@@ -55,7 +55,7 @@ dl = DataLoader(ds,
 encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
 
-vae = torch.load('out/vae/checkpoints/vae_final_epoch_150.torch', map_location=device, weights_only=False)
+vae = torch.load('out/vae/checkpoints/vae_final_epoch_200.torch', map_location=device, weights_only=False)
 vae.device = device
 vae.eval()
 
@@ -71,11 +71,12 @@ for i in range(128):
 
 
 for s in tqdm.tqdm(dl):
-    _, timbre_embedding, _, _, pitch_classification = vae.forward(s['embeddings'].to(device))
+    _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
     pitch_classification = pitch_classification.argmax(dim=1)
     pitch_classification = pitch_classification.cpu().detach().numpy()
     timbre_embedding = timbre_embedding.cpu().detach().numpy()
     family = s['metadata']['family'].numpy()
+    # family = s['metadata']['instrument'].numpy()
     
     for t,p,f in zip(timbre_embedding, pitch_classification, family):
         pitch_timbres[p] = np.vstack((pitch_timbres[p], np.hstack((t,f))))
