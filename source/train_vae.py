@@ -31,6 +31,8 @@ import tqdm
 import utils.ffmpeg_helper as ffmpeg
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
 LOG_TENSORBOARD = True

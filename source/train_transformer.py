@@ -19,6 +19,8 @@ from transformers import EncodecModel
 
 import tqdm
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
 LOG_TENSORBOARD = True
@@ -68,20 +70,20 @@ def visu_model(model, cond_model, dl, device, name_prefix="", epoch=0, writer=No
 
         generated = model.generate(emb.shape[1], combined_cond)
         
-        fig1, axes1 = plt.subplots(1, 2, figsize=(10, 10), num=1)
+        fig, axes = plt.subplots(1, 2, figsize=(10, 10))
         # orig embedding
-        axes1[0].imshow(emb[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
-        axes1[0].set_title("Original")
+        axes[0].imshow(emb[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
+        axes[0].set_title("Original")
         # generated embedding
-        axes1[1].imshow(generated[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
-        axes1[1].set_title("Generated")
+        axes[1].imshow(generated[0].cpu().detach().numpy(), vmin=0.0, vmax=1.0)
+        axes[1].set_title("Generated")
         plt.savefig(f"out/transformer/{name_prefix}_embedding_comparison.png")
 
         if writer is not None:
-            writer.add_figure(f"{name_prefix}/embedding_comparison", fig1, epoch)
+            writer.add_figure(f"{name_prefix}/embedding_comparison", fig, epoch)
 
-        plt.close(1)
-        fig1.clear()
+        plt.close()
+        fig.clear()
         break
 
 @torch.no_grad()
