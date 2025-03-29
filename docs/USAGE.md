@@ -183,6 +183,15 @@ For information on cleaning up the DVC cache, refer to the [DVC Documentation](h
 
 > **Note**: Be careful with this, as we are using a shared cache between parallel experiment runs.
 
+## Other Notes
 
+- If you are using multiple workes in a `torch.data.utils.DataLoader`, there may be issues because of too many open files descriptors in your process. You can increase the limit of open files descriptors with the following command:
 
+```sh
+# View current limit
+ulimit -n
+# Increase limit
+ulimit -n 262144
+```
 
+> Note: This is a temporary change and will be reset after the session ends. On the hpc you can only change this once per session to a higher limit.

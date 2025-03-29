@@ -27,7 +27,7 @@
                     "remoteRoot": "."
                 }
             ],
-            "preLaunchTask": "Compound Task"
+            "preLaunchTask": "Update params.yaml and Singularity: Exec"
         },
         {
             "name": "(debugpy) Debug exp_workflow.sh",

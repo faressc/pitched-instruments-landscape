@@ -6,6 +6,9 @@
 
 # Description: This script runs an experiment with DVC within a temporary directory copy and pushes the results to the DVC and Git remote.
 
+# Increase the maximum number of open file descriptors for the current shell session for multiple workers in DataLoader
+ulimit -n 262144
+
 # Set environment variables defined in global.env
 set -o allexport
 source global.env
