@@ -7,7 +7,7 @@ dropout_ratio: 0.
 eval_interval: 5
 visualize_interval: 10
 hear_interval: 10
-save_interval: 25
+save_interval: 40
 
 # crop the time dimension to this length (150 -> input_crop)
 input_crop: 150

@@ -6,7 +6,7 @@ betas: [0.9, 0.95]  # adam betas
 eval_interval: 5
 visualize_interval: 10
 hear_interval: 10
-save_interval: 25
+save_interval: 40
 
 # transformer config
 block_size: 300
