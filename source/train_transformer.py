@@ -120,15 +120,6 @@ def main():
     print("##### Starting Train Stage #####")
     os.makedirs("out/transformer/checkpoints", exist_ok=True)
 
-    # Check how many CUDA GPUs are available
-    gpu_count = torch.cuda.device_count()
-    print(f"Number of available GPUs: {gpu_count}")
-
-    # Print GPU details if available
-    if gpu_count > 0:
-        for i in range(gpu_count):
-            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
-
     cfg = OmegaConf.load("params.yaml")
 
     epochs = cfg.train.transformer.epochs
@@ -137,14 +128,23 @@ def main():
     lr_change_intervals = [0.5, 0.6, 0.7, 0.8, 0.9]
     lr_change_multiplier = 0.5
     
-    # Set a random seed for reproducibility across all devices. Add more devices if needed
-    config.set_random_seeds(cfg.train.random_seed)
-    # Prepare the requested device for training. Use cpu if the requested device is not available 
+    # Prepare the requested device for training. Use cpu if the requested device is not available
+    gpu_count = torch.cuda.device_count()
+    print(f"Number of available GPUs: {gpu_count}")
+    if gpu_count > 0:
+        for i in range(gpu_count):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     device = config.prepare_device(cfg.train.device)
 
+    # Set a random seed for reproducibility across typical libraries
+    config.set_random_seeds(cfg.train.random_seed)
+    # Benchmarking for performance optimization
+    if "cuda" in str(device):
+        torch.backends.cudnn.benchmark = True # TODO: Does this work with deterministic algorithms?
     # Make PyTorch operations deterministic for reproducibility
-    torch.backends.cudnn.benchmark = True
-    torch.backends.cudnn.deterministic = True
+    if cfg.train.deterministic:
+        torch.use_deterministic_algorithms(mode=True, warn_only=True)
+    print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)

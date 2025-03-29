@@ -5,6 +5,7 @@ random_seed: ${RANDOM_SEED}
 num_workers: 0
 pitch: -1
 device: auto
+deterministic: true
 
 defaults:
   - vae: vae
