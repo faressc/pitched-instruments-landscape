@@ -14,7 +14,7 @@ input_crop: 150
 
 # vae with convolutional layers
 channels: [128, 256, 512, 1024, 2048, 4096]
-linears: [16384, 8192, 4096, 2048, 1024, 512, 2]
+linears: [8192, 4096, 2048, 1024, 512, 2]
 
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss
