@@ -5,16 +5,29 @@ wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
 dropout_ratio: 0.
 eval_interval: 5
-visualize_interval: 10
-hear_interval: 10
-save_interval: 40
+visualize_interval: 5
+hear_interval: 40
+save_interval: 5
 
 # crop the time dimension to this length (150 -> input_crop)
 input_crop: 150
 
 # vae with convolutional layers
-channels: [128, 256, 512, 1024, 2048, 4096]
-linears: [16384, 8192, 4096, 2048, 1024, 512, 2]
+channels: [128, 256, 512, 1024, 2048]
+linears: [8192, 4096, 2048, 1024, 512, 2]
+
+
+
+# loss function parameter
+rec_beta: 0.1 # reconstruction loss, comparing input audio embedding and generated embedding
+rep_beta: 0.5 # repulsion loss for maximising the distance of in-batch samples
+spa_beta: 1.0 # spatial loss for limiting samples to the unicircle area to be used as a user interface
+cla_beta: 0.1 # classifier for estimating the pitch from the encoder head
+inst_beta: 0.1 # instrument classification from 2d embedding (for globally arranging samples)
+reg_scaling_exp: 2.0 # scaling exponent for the repultion loss (possible good values: 1.5, 2.0, 2.5, 3.0)
+
+
+
 
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss

@@ -218,20 +218,20 @@ class ConditionConvVAE(nn.Module):
     def initialize_weights(self):
         for layer in self.modules():
             if isinstance(layer, nn.Conv1d):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)
             if isinstance(layer, nn.ConvTranspose1d):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
             if isinstance(layer, nn.Linear):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device):
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, rep_beta, spa_beta, cla_beta, inst_beta, reg_scaling_exp):
     
     b, t, f = x.shape
     
@@ -279,14 +279,6 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
     zero_tensor = torch.FloatTensor([0.0]).to(device)
     spatial_loss = torch.max((l_orig-1.0),zero_tensor.expand_as(l_orig)).mean()
     
-    # # debug print outs
-    # print('###')
-    # print(reproduction_loss)
-    # print(neighbor_loss)
-    # print(spatial_loss)
-    # print('')
-
-    
     # # old linear way
     # warmup_ratio = 0.3
     # warmup_beta = 0.0 if training_progress < warmup_ratio else training_progress
@@ -294,17 +286,11 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
     
     training_progress = (current_epoch/num_epochs)
 
-    def regularization_scaling(x):
-        return x**3
+    def regularization_scaling(x, reg_scaling_exp):
+        return x**reg_scaling_exp
 
-    rec_beta = 10.
-    rep_beta = 1.0
-    spa_beta = 3.0
-    cla_beta = 0.1
-    inst_beta = 0.1
-    
     return rec_beta * reproduction_loss, \
-    rep_beta * regularization_scaling(training_progress) * neighbor_loss, \
+    rep_beta * regularization_scaling(training_progress, reg_scaling_exp) * neighbor_loss, \
     spa_beta * spatial_loss, \
     cla_beta * cls_loss, \
     inst_beta * instr_loss

@@ -36,7 +36,7 @@ config.set_random_seeds(cfg.train.random_seed)
 device = config.prepare_device(cfg.train.device)
 
 print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-ds = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
+ds = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
 
 batch_size = 32
 

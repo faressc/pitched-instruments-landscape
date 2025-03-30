@@ -22,7 +22,31 @@ train:
   deterministic: true
   device: auto
   num_workers: 0
-  pitch: -1
+  pitch:
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  - 64
+  - 65
+  - 66
+  - 67
+  - 68
+  - 69
+  - 70
+  - 71
   random_seed: 42
   transformer:
     batch_size: 256
@@ -70,14 +94,14 @@ train:
     - 512
     - 1024
     - 2048
-    - 4096
+    cla_beta: 0.1
     dropout_ratio: 0.0
     epochs: 200
     eval_interval: 5
-    hear_interval: 10
+    hear_interval: 40
     input_crop: 150
+    inst_beta: 0.1
     linears:
-    - 16384
     - 8192
     - 4096
     - 2048
@@ -85,6 +109,10 @@ train:
     - 512
     - 2
     lr: 0.0001
-    save_interval: 40
-    visualize_interval: 10
+    rec_beta: 0.1
+    reg_scaling_exp: 2.0
+    rep_beta: 0.5
+    save_interval: 5
+    spa_beta: 1.0
+    visualize_interval: 5
     wd: 0.05

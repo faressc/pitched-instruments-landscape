@@ -35,7 +35,7 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch):
@@ -178,28 +178,27 @@ def main():
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
-    # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
+
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
-    # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+    
+    sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
+    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=True)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.vae.batch_size,
-                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
+                                  sampler=sampler_train,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.vae.batch_size,
-                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
+                                  sampler=sampler_valid,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
                                 )
     
     print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
@@ -212,7 +211,7 @@ def main():
     print("Instantiating the loss functions.")
     
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
-    calculate_vae_loss = partial(calculate_vae_loss, device=device)
+    calculate_vae_loss = partial(calculate_vae_loss, device=device, rec_beta = cfg.train.vae.rec_beta, rep_beta = cfg.train.vae.rep_beta, spa_beta = cfg.train.vae.spa_beta, cla_beta = cfg.train.vae.cla_beta, inst_beta = cfg.train.vae.inst_beta, reg_scaling_exp = cfg.train.vae.reg_scaling_exp)
 
     encodec_model = None
     if cfg.train.vae.hear_interval > 0:

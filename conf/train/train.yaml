@@ -3,7 +3,8 @@ db_path_valid: data/processed/valid
 db_path_test: data/processed/test
 random_seed: ${RANDOM_SEED}
 num_workers: 0
-pitch: -1
+pitch: [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,   
+        60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71]
 device: auto
 deterministic: true
 
