@@ -3,7 +3,7 @@ import utils.debug
 import os
 from pathlib import Path
 
-from dataset import MetaAudioDataset
+from dataset import MetaAudioDataset, FilterPitchSampler
 
 from utils import logs, config
 import utils.ffmpeg_helper as ffmpeg
@@ -23,7 +23,7 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
@@ -46,8 +46,9 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
         loss = loss_fn(logits, emb).item()
 
         # Generate the whole sequence with the model
-        generated = model.generate(num_tokens=emb.shape[1], condition=combined_cond)
-        gen_loss = loss_fn(generated, emb).item()
+        num_tokens = 150
+        generated = model.generate(num_tokens=num_tokens, condition=combined_cond)
+        gen_loss = loss_fn(generated[:,:num_tokens,:], emb[:,:num_tokens,:]).item()
 
         losses.append([loss, gen_loss])
         
@@ -148,28 +149,27 @@ def main():
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-    # train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=1000) # for testing
-    # train_dataset = MetaAudioDataset(db_path="data/partial/train_stripped", max_num_samples=1000, has_audio=False) # no audio data in the dataset
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
-    # filter_pitch_sampler = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch)
+
+    sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
+    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=True)
+
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.transformer.batch_size}")
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=cfg.train.transformer.batch_size,
-                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
+                                  sampler=sampler_train,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=True,
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.transformer.batch_size}")
     valid_dataloader = DataLoader(valid_dataset,
                                   batch_size=cfg.train.transformer.batch_size,
-                                  # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, False),
+                                  sampler=sampler_valid,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  shuffle=False,
                                 )
     
     print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
@@ -241,7 +241,6 @@ def main():
 
             # concatenating timbre and pitch condition for putting into encoder of transformer
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
-            combined_cond_for_generation = combined_cond
 
             # emb_shifted is the transposed input vector (in time dimension) for autoregressive training
             emb_shifted = emb[:,:-1,:]
@@ -263,13 +262,13 @@ def main():
         model.eval()
         if (epoch % cfg.train.transformer.eval_interval) == 0 and epoch > 0:
             print()
-            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=25, loss_fn=loss_fn)
+            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
             print("TRAIN: Epoch %d: Train loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
             if writer is not None:
                 writer.add_scalar("train/loss", losses[0], epoch)
                 writer.add_scalar("train/gen_loss", losses[1], epoch)
 
-            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=25, loss_fn=loss_fn)
+            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
             print("VALID: Epoch %d: Val loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
             if writer is not None:
                 writer.add_scalar("valid/loss", losses[0], epoch)

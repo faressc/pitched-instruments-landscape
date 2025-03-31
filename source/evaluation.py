@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 from utils import logs, config
 from hydra.utils import instantiate
 
-from dataset import MetaAudioDataset
+from dataset import MetaAudioDataset, FilterPitchSampler
 
 from transformer import GesamTransformer
 
@@ -34,22 +34,19 @@ cfg = OmegaConf.load("params.yaml")
 config.set_random_seeds(cfg.train.random_seed)
 # Prepare the requested device for training. Use cpu if the requested device is not available 
 device = config.prepare_device(cfg.train.device)
-
-print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-ds = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-
 batch_size = 32
 
 
 
-
-dl = DataLoader(ds,
-                                batch_size=batch_size,
-                                # sampler=FilterPitchSampler(valid_dataset, cfg.train.pitch, True),
-                                drop_last=False,
-                                # num_workers=cfg.train.num_workers,
-                                shuffle=False,
-                                )
+print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
+train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
+sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
+dl = DataLoader(train_dataset,
+                batch_size=batch_size,
+                sampler=sampler_train,
+                drop_last=False,
+                # num_workers=cfg.train.num_workers,
+                )
 
 
 encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)

@@ -49,28 +49,29 @@ train:
   - 71
   random_seed: 42
   transformer:
-    batch_size: 256
+    batch_size: 128
     betas:
     - 0.9
     - 0.95
     block_size: 300
-    condition_model_path: out/vae/checkpoints/vae_final_epoch_200.torch
+    condition_model_path: out/vae/checkpoints/vae_2_octaves.torch
     dropout: 0.0
-    epochs: 200
+    epochs: 20
     eval_interval: 5
     feedforward_dimension: 2048
-    hear_interval: 10
+    hear_interval: 5
     input_dimension: 128
-    internal_dimension: 512
+    internal_dimension: 1024
     learning_rate: 0.0001
     loss_fn:
       _target_: torch.nn.MSELoss
       reduction: mean
-    n_head: 8
-    n_layer_decoder: 11
+    n_head: 16
+    n_layer_decoder: 12
     n_layer_encoder: 8
-    save_interval: 40
-    visualize_interval: 10
+    num_batches_evaluation: 5
+    save_interval: 5
+    visualize_interval: 5
     weight_decay: 0.05
   vae:
     batch_size: 256

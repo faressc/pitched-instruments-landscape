@@ -3,8 +3,7 @@ import utils.debug
 import os
 from pathlib import Path
 
-from dataset import MetaAudioDataset
-from dataset import FilterPitchSampler
+from dataset import MetaAudioDataset, FilterPitchSampler
 
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
