@@ -23,7 +23,7 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = False
+LOG_TENSORBOARD = True
 
 @torch.no_grad()
 def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
@@ -153,7 +153,7 @@ def main():
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
 
     sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
-    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=True)
+    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=False)
 
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.transformer.batch_size}")

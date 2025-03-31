@@ -19,7 +19,7 @@ n_layer_decoder: 12
 n_head: 16
 dropout: 0.0
 
-condition_model_path: "out/vae/checkpoints/vae_2_octaves.torch"
+condition_model_path: "out/vae/checkpoints/vae_final_epoch_200.torch"
 
 loss_fn:
   _target_: torch.nn.MSELoss
