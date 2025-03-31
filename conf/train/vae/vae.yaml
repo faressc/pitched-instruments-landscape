@@ -19,11 +19,11 @@ linears: [8192, 4096, 2048, 1024, 512, 2]
 
 
 # loss function parameter
-rec_beta: 0.1 # reconstruction loss, comparing input audio embedding and generated embedding
+rec_beta: 0.2 # reconstruction loss, comparing input audio embedding and generated embedding
 rep_beta: 0.5 # repulsion loss for maximising the distance of in-batch samples
 spa_beta: 1.0 # spatial loss for limiting samples to the unicircle area to be used as a user interface
-cla_beta: 0.1 # classifier for estimating the pitch from the encoder head
-inst_beta: 0.1 # instrument classification from 2d embedding (for globally arranging samples)
+cla_beta: 0.12 # classifier for estimating the pitch from the encoder head
+inst_beta: 0.07 # instrument classification from 2d embedding (for globally arranging samples)
 reg_scaling_exp: 2.0 # scaling exponent for the repultion loss (possible good values: 1.5, 2.0, 2.5, 3.0)
 
 
