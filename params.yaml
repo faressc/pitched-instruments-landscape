@@ -16,7 +16,7 @@ preprocess:
 train:
   vae:
     epochs: 200
-    batch_size: 256
+    batch_size: 512
     lr: 0.0001
     wd: 0.05
     betas:
@@ -26,7 +26,7 @@ train:
     eval_interval: 5
     visualize_interval: 5
     hear_interval: 40
-    save_interval: 5
+    save_interval: 40
     input_crop: 150
     channels:
     - 128
@@ -41,11 +41,11 @@ train:
     - 1024
     - 512
     - 2
-    rec_beta: 0.2
+    rec_beta: 0.1
     rep_beta: 0.5
     spa_beta: 1.0
-    cla_beta: 0.12
-    inst_beta: 0.07
+    cla_beta: 0.1
+    inst_beta: 0.1
     reg_scaling_exp: 2.0
     calculate_vae_loss:
       _target_: vae.calculate_vae_loss
@@ -57,9 +57,9 @@ train:
         reduction: sum
       cls_loss_fn:
         _target_: torch.nn.CrossEntropyLoss
-      batch_size: 256
+      batch_size: 512
   transformer:
-    epochs: 100
+    epochs: 20
     batch_size: 128
     learning_rate: 0.0001
     weight_decay: 0.05
@@ -67,16 +67,17 @@ train:
     - 0.9
     - 0.95
     eval_interval: 5
-    visualize_interval: 10
-    hear_interval: 10
-    save_interval: 25
+    visualize_interval: 5
+    hear_interval: 5
+    save_interval: 5
+    num_batches_evaluation: 5
     block_size: 300
     input_dimension: 128
-    internal_dimension: 512
+    internal_dimension: 1024
     feedforward_dimension: 2048
     n_layer_encoder: 8
-    n_layer_decoder: 11
-    n_head: 8
+    n_layer_decoder: 12
+    n_head: 16
     dropout: 0.0
     condition_model_path: out/vae/checkpoints/vae_final_epoch_200.torch
     loss_fn:
@@ -176,7 +177,7 @@ train:
   - 106
   - 107
   - 108
-  device: auto
+  device: cuda:1
   deterministic: true
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
