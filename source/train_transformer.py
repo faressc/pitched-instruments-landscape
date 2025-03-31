@@ -3,7 +3,7 @@ import utils.debug
 import os
 from pathlib import Path
 
-from dataset import MetaAudioDataset, FilterPitchSampler
+from dataset import MetaAudioDataset, CustomSampler
 
 from utils import logs, config
 import utils.ffmpeg_helper as ffmpeg
@@ -152,8 +152,8 @@ def main():
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
 
-    sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
-    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=False)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity)
+    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=False, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity)
 
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.transformer.batch_size}")
@@ -171,8 +171,9 @@ def main():
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
                                 )
-    
-    print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
+
+    print(f"Length of train dataloader: {len(train_dataloader)}")
+    print(f"Length of valid dataloader: {len(valid_dataloader)}")
 
     transformer_config = dict(
         block_size = cfg.train.transformer.block_size,
@@ -279,10 +280,11 @@ def main():
             visu_model(model, condition_model, train_dataloader, device=device, name_prefix="train", epoch=epoch, writer=writer)
             visu_model(model, condition_model, valid_dataloader, device=device, name_prefix="valid", epoch=epoch, writer=writer)
 
-        if (epoch % cfg.train.transformer.hear_interval) == 0 and epoch > 0:
-            print("Hearing the model")
-            hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch, writer=writer)
-            hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch, writer=writer)
+        if cfg.train.transformer.hear_interval > 0:
+            if (epoch % cfg.train.transformer.hear_interval) == 0 and epoch > 0:
+                print("Hearing the model")
+                hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch, writer=writer)
+                hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch, writer=writer)
 
         if (epoch % cfg.train.transformer.save_interval) == 0 and epoch > 0:
             print("Saving model at epoch %d" % (epoch))

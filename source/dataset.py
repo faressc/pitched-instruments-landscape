@@ -1,10 +1,11 @@
 import os
-from typing import Sequence
+from typing import Sequence, Optional
 
 import lmdb
 from torch.utils.data import Dataset
 from torch.utils.data import Sampler
 import numpy as np
+from tqdm import tqdm
 try:
     from proto.meta_audio_file_pb2 import MetaAudioFile
 except:
@@ -30,11 +31,11 @@ class MetaAudioDataset(Dataset):
     
     @property
     def keys(self) -> Sequence[str]:
-        key_count = 0
         if self._keys is None:
+            key_count = 0
             self._keys = []
             with self.env.begin() as txn:
-                for key, _ in txn.cursor():
+                for key, _ in tqdm(txn.cursor(), total=txn.stat()['entries'], desc="Loading keys", unit="key"):
                     self._keys.append(key)
                     if self._max_num_samples != -1:
                         key_count += 1
@@ -123,12 +124,40 @@ class MetaAudioDataset(Dataset):
 
     
     
-class FilterPitchSampler(Sampler):
-    def __init__(self, dataset: MetaAudioDataset, pitch: Sequence[int], shuffle: bool):
+class CustomSampler(Sampler):
+    def __init__(self, dataset: Dataset, pitch: Optional[Sequence[int]] = None, max_inst_per_family: int = -1, velocity: Optional[Sequence[int]] = None, shuffle: bool = False):
         self.dataset = dataset
         self.pitch = pitch
-        self.indices = [i for i, data in enumerate(dataset) if data["metadata"]["pitch"] in pitch]
+        self.max_inst_per_family = max_inst_per_family
+        self.velocity = velocity
+        self.families = []
+        self.chosen_instruments = []
+        self._indices = None
         self.shuffle = shuffle
+
+    @property
+    def indices(self):
+        if self._indices is None:
+            self._indices = []
+            for i, data in tqdm(enumerate(self.dataset), total=len(self.dataset), desc="Building sampler indices"):
+                add_index = True
+                if self.pitch and data["metadata"]["pitch"] not in self.pitch:
+                    add_index = False
+                if self.velocity and data["metadata"]["velocity"] not in self.velocity:
+                    add_index = False
+                if self.max_inst_per_family > 0 and add_index:
+                    family = data["metadata"]["family"]
+                    if family not in self.families:
+                        self.families.append(family)
+                        self.chosen_instruments.append([])
+                    family_index = self.families.index(family)
+                    if len(self.chosen_instruments[family_index]) < self.max_inst_per_family:
+                        self.chosen_instruments[family_index].append(data["metadata"]["instrument"])
+                    elif data["metadata"]["instrument"] not in self.chosen_instruments[family_index]:
+                        add_index = False 
+                if add_index:
+                    self._indices.append(i)
+        return self._indices
 
     def __iter__(self):
         if self.shuffle:
