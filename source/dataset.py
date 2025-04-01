@@ -15,11 +15,12 @@ except:
 
 class MetaAudioDataset(Dataset):
 
-    def __init__(self, db_path: str, max_num_samples: int = -1, has_audio: bool = True):
+    def __init__(self, db_path: str, max_num_samples: int = -1, has_audio: bool = True, fast_forward_keygen: bool = False):
         super().__init__()
         self._db_path = db_path
         self._env = None
         self._keys = None
+        self._fast_forward_keygen = fast_forward_keygen
         self._max_num_samples = max_num_samples
         self._has_audio = has_audio
 
@@ -30,17 +31,26 @@ class MetaAudioDataset(Dataset):
         return self._env
     
     @property
-    def keys(self) -> Sequence[str]:
+    def keys(self) -> Sequence[bytes]:
         if self._keys is None:
-            key_count = 0
-            self._keys = []
-            with self.env.begin() as txn:
-                for key, _ in tqdm(txn.cursor(), total=txn.stat()['entries'], desc="Loading keys", unit="key"):
-                    self._keys.append(key)
-                    if self._max_num_samples != -1:
-                        key_count += 1
-                        if key_count >= self._max_num_samples:
-                            break
+            if self._fast_forward_keygen:
+                if self._max_num_samples > 0:
+                    num_entries = self._max_num_samples
+                else:
+                    num_entries = self.env.stat()['entries']
+                if num_entries == 0:
+                    raise ValueError("The database is empty.")
+                self._keys = [f"{index:08}".encode() for index in range(num_entries)]
+            else:
+                key_count = 0
+                self._keys = []
+                with self.env.begin() as txn:
+                    for key, _ in tqdm(txn.cursor(), total=txn.stat()['entries'], desc="Loading keys", unit="key"):
+                        self._keys.append(key)
+                        if self._max_num_samples != -1:
+                            key_count += 1
+                            if key_count >= self._max_num_samples:
+                                break
         return self._keys
     
     @property
