@@ -5,7 +5,7 @@ weight_decay: 0.05
 betas: [0.9, 0.95]  # adam betas
 eval_interval: 100
 visualize_interval: 1000
-hear_interval: 0
+hear_interval: 1000
 save_interval: 1000
 num_batches_evaluation: 5 # how many batches of samples should be generated in eval_model? Takes a lot of time!
 
