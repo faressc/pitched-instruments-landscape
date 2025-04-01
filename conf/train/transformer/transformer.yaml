@@ -15,7 +15,7 @@ input_dimension: 128
 internal_dimension: 512
 feedforward_dimension: 1024
 n_layer_encoder: 8
-n_layer_decoder: 8
+n_layer_decoder: 12
 n_head: 8
 dropout: 0.0
 
