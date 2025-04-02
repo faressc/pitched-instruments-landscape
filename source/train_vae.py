@@ -54,7 +54,7 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
                                                             note_cls = note_cls, 
                                                             gt_cls = gt_cls, 
                                                             cls_head = cls_head,
-                                                            gt_inst = data['metadata']['family'].to(device), 
+                                                            gt_inst = data['metadata']['instrument'].to(device), 
                                                             current_epoch = current_epoch,
                                                             )
 
@@ -89,7 +89,7 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
-        families = np.concat((families, data['metadata']['family'][:num_examples].numpy()))
+        families = np.concat((families, data['metadata']['instrument'][:num_examples].numpy()))
         if len(embs) >= num_examples: # skip when ds gets too large
             break
 
@@ -260,7 +260,7 @@ def main():
                                                               note_cls = note_cls, 
                                                               gt_cls = data['metadata']['pitch'].to(device), 
                                                               cls_head = cls_head,
-                                                              gt_inst = data['metadata']['family'].to(device), 
+                                                              gt_inst = data['metadata']['instrument'].to(device), 
                                                               current_epoch = epoch,
                                                               )
             

@@ -62,17 +62,14 @@ class ConditionConvVAE(nn.Module):
         # fed by classification head
         self.note_cls = nn.Linear(self.head_size, num_notes)
         
-        self.cls_head0 = nn.Linear(linears[-1], 4)
-        self.cls_head1 = nn.Linear(4, 8)
-        self.cls_head2 = nn.Linear(8, 16)
-        self.cls_head3 = nn.Linear(16, 32)
-        self.cls_head_out = nn.Linear(32, 11)
-
-        self.cls_head0_norm = nn.LayerNorm(4)
-        self.cls_head1_norm = nn.LayerNorm(8)
-        self.cls_head2_norm = nn.LayerNorm(16)
-        self.cls_head3_norm = nn.LayerNorm(32)
-
+        self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, 512, 1024]
+        
+        for hn in range(len(self.instrument_head_linears)-1):
+            l1 = self.instrument_head_linears[hn]
+            l2 = self.instrument_head_linears[hn+1]
+            setattr(self, 'instrument_head_{}'.format(hn), nn.Linear(l1,l2))
+            setattr(self, 'instrument_head_norm_{}'.format(hn), nn.LayerNorm(l2))
+        
 
         dec_linears = linears[::-1]
         dec_channels = channels[::-1]
@@ -180,16 +177,16 @@ class ConditionConvVAE(nn.Module):
         
         note_cls = self.note_cls(x_cla)
         
-        cls_head = self.cls_head0(mean)
-        cls_head = self.cls_head0_norm(cls_head)
-        cls_head = self.cls_head1(cls_head)
-        cls_head = self.cls_head1_norm(cls_head)
-        cls_head = self.cls_head2(cls_head)
-        cls_head = self.cls_head2_norm(cls_head)
-        cls_head = self.cls_head3(cls_head)
-        cls_head = self.cls_head3_norm(cls_head)
-        cls_head = self.cls_head_out(cls_head)
         
+        cls_head = mean
+        
+        for i in range(len(self.instrument_head_linears)-2):
+            cls_head = getattr(self, 'instrument_head_{}'.format(i))(cls_head)
+            cls_head = getattr(self, 'instrument_head_norm_{}'.format(i))(cls_head)
+
+        cls_head = getattr(self, 'instrument_head_{}'.format(len(self.instrument_head_linears)-2))(cls_head)
+    
+            
         return mean, var, note_cls, cls_head
 
     def decode(self, x):
