@@ -16,17 +16,14 @@ from omegaconf import OmegaConf
 from utils import logs, config
 from hydra.utils import instantiate
 
-from dataset import MetaAudioDataset, FilterPitchSampler
+from dataset import MetaAudioDataset, CustomSampler
 
-from transformer import GesamTransformer
+import shutil
 
-import utils.ffmpeg_helper as ffmpeg
-
-
-eval_dir = 'out/evaluate/'
-
-print("##### Starting Train Stage #####")
-os.makedirs(eval_dir, exist_ok=True)
+out_dir = 'out/generate_scatter/'
+if os.path.exists(out_dir):
+    shutil.rmtree(out_dir)
+os.makedirs(out_dir, exist_ok=True)
 
 cfg = OmegaConf.load("params.yaml")
 
@@ -40,7 +37,7 @@ batch_size = 32
 
 print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
 train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
+sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
 dl = DataLoader(train_dataset,
                 batch_size=batch_size,
                 sampler=sampler_train,
@@ -52,20 +49,13 @@ dl = DataLoader(train_dataset,
 encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
 
-vae = torch.load('out/vae/checkpoints/vae_final_epoch_200.torch', map_location=device, weights_only=False)
+vae = torch.load(cfg.train.vae_path, map_location=device, weights_only=False)
 vae.device = device
 vae.eval()
 
-# transformer = torch.load('out/transformer/checkpoints/transformer_epoch_29.torch', weights_only=False).to(device)
-# transformer.eval()
-
-
 pitch_timbres = dict()
-
 for i in range(128):
     pitch_timbres[i] = np.zeros((0,3))
-
-
 
 for s in tqdm.tqdm(dl):
     _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
@@ -80,10 +70,9 @@ for s in tqdm.tqdm(dl):
         
 
 
-min_pitch = 21
-max_pitch = 108
+pitches = cfg.train.pitch
 
-for pt in range(min_pitch, max_pitch+1):
+for pt in range(min(pitches), max(pitches)+1):
     print('pitch %d: %d number of points' % (pt, len(pitch_timbres[pt])))
     
     
@@ -107,5 +96,5 @@ for pt in range(min_pitch, max_pitch+1):
     ax.set_yticks(np.arange(-1, 1.2, 0.2))
     ax.grid(True, linestyle='--', linewidth=0.5, color='gray')
 
-    plt.savefig(os.path.join(eval_dir,'timbres_note_%03d.svg' % (pt,)))
+    plt.savefig(os.path.join(out_dir,'%03d.svg' % (pt,)))
     plt.close()

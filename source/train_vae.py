@@ -3,7 +3,7 @@ import utils.debug
 import os
 from pathlib import Path
 
-from dataset import MetaAudioDataset, FilterPitchSampler
+from dataset import MetaAudioDataset, CustomSampler
 
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
@@ -34,7 +34,7 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = True
+LOG_TENSORBOARD = False
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch):
@@ -176,13 +176,13 @@ def main():
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
     
-    sampler_train = FilterPitchSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
-    sampler_valid = FilterPitchSampler(dataset=valid_dataset, pitch=cfg.train.pitch, shuffle=True)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
+    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
@@ -190,6 +190,7 @@ def main():
                                   sampler=sampler_train,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
+                                  
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")

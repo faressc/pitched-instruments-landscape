@@ -12,3 +12,6 @@ deterministic: true
 defaults:
   - vae: vae
   - transformer: transformer
+
+vae_path: out/vae/checkpoints/vae_final_epoch_200.torch
+transformer_path: out/transformer/checkpoints/vae_final_epoch_5000.torch
