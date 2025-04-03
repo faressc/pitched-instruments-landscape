@@ -120,6 +120,6 @@ train:
     spa_beta: 1.0
     visualize_interval: 5
     wd: 0.05
-  vae_path: out/vae/checkpoints/vae_final_epoch_200.torch
+  vae_path: out/vae/checkpoints/vae_final_epoch_1000.torch
   velocity:
   - 100
