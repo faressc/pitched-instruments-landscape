@@ -34,7 +34,7 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
-LOG_TENSORBOARD = False
+LOG_TENSORBOARD = True
 
 @torch.no_grad()
 def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch):
@@ -190,7 +190,6 @@ def main():
                                   sampler=sampler_train,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                  
                                   )
 
     print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
@@ -199,9 +198,10 @@ def main():
                                   sampler=sampler_valid,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
-                                )
+                                  )
     
-    print('Size of train set: %d \t Size of val set: %d' % (len(train_dataset),len(valid_dataset)))
+    print(f"Length of train dataloader: {len(train_dataloader)}")
+    print(f"Length of valid dataloader: {len(valid_dataloader)}")
     
     print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
     vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)

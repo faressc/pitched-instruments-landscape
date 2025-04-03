@@ -288,13 +288,13 @@ def main():
 
         if (epoch % cfg.train.transformer.save_interval) == 0 and epoch > 0:
             print("Saving model at epoch %d" % (epoch))
-            torch.save(model, 'out/transformer/checkpoints/vae_epoch_%d.torch' % (epoch))
+            torch.save(model, 'out/transformer/checkpoints/transformer_epoch_%d.torch' % (epoch))
 
         if writer is not None and epoch > 0:
             writer.step()
             
     print("Training completed. Saving the model.")
-    torch.save(model, 'out/transformer/checkpoints/vae_final_epoch_%d.torch' % (epochs))
+    torch.save(model, 'out/transformer/checkpoints/transformer_final_epoch_%d.torch' % (epochs))
     if writer is not None:
         writer.close()
 
