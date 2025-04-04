@@ -18,16 +18,13 @@ class GesamTransformer(nn.Module):
         self.config = transformer_config
         self.device = device
         
-        self.input_projection_decoder = nn.Linear(self.config['input_dimension'], self.config['internal_dimension']).to(device)
         self.input_projection_encoder_timbre = nn.Linear(1,self.config['internal_dimension']).to(device)
-        self.input_projection_encoder_pos = nn.Embedding(128,self.config['internal_dimension']).to(device)
+        self.input_projection_encoder_pitch = nn.Embedding(self.config['number_of_pitch_classes'],self.config['internal_dimension']).to(device)
+
+        self.input_projection_decoder = nn.Linear(self.config['input_dimension'], self.config['internal_dimension']).to(device)
+        self.input_posemb_decoder = nn.Embedding(self.config['block_size'], self.config['internal_dimension']).to(device)
 
         self.output_projection = nn.Linear(self.config['internal_dimension'], self.config['input_dimension']).to(device)
-
-        # positional encoding layer decoder
-        self.input_posemb_decoder = nn.Embedding(self.config['block_size'], self.config['internal_dimension']).to(device)
-        # positional enocding layer encoder
-        self.input_posemb_encoder = nn.Embedding(3, self.config['internal_dimension']).to(device)
         
         self.transformer = nn.Transformer(
                 d_model = self.config['internal_dimension'], 
@@ -36,7 +33,7 @@ class GesamTransformer(nn.Module):
                 num_encoder_layers=self.config['n_layer_encoder'],
                 num_decoder_layers=self.config['n_layer_decoder'],
                 dropout=self.config['dropout'],
-                dim_feedforward=self.config['feedforward_dimension']
+                dim_feedforward=self.config['feedforward_dimension'],
         ).to(device)
 
 
@@ -54,7 +51,7 @@ class GesamTransformer(nn.Module):
         xenc_timbre = xenc[:,:2]
         xenc_timbre = self.input_projection_encoder_timbre(xenc_timbre.unsqueeze(-1))
         xenc_pitch = xenc[:,2:]
-        xenc_pitch = self.input_projection_encoder_pos(torch.argmax(xenc_pitch, dim=1)).unsqueeze(1)
+        xenc_pitch = self.input_projection_encoder_pitch(torch.argmax(xenc_pitch, dim=1)).unsqueeze(1)
         x_concat = torch.concat((xenc_timbre, xenc_pitch), dim=1)
         
         mask = self.get_tgt_mask(xdec.shape[1])

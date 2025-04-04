@@ -231,6 +231,7 @@ class ConditionConvVAE(nn.Module):
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
+# TODO: Add KL divergence loss
 def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, rep_beta, spa_beta, cla_beta, inst_beta, reg_scaling_exp):
     
     b, t, f = x.shape
