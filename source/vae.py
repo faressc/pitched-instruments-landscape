@@ -183,9 +183,9 @@ class ConditionConvVAE(nn.Module):
         for i in range(len(self.instrument_head_linears)-2):
             cls_head = getattr(self, 'instrument_head_{}'.format(i))(cls_head)
             cls_head = getattr(self, 'instrument_head_norm_{}'.format(i))(cls_head)
-            # cls_head = self.relu(cls_head)
-            # if i > 2:
-            #     cls_head = self.dropout(cls_head)
+            cls_head = self.relu(cls_head)
+            if i > 2:
+                cls_head = self.dropout(cls_head)
 
         cls_head = getattr(self, 'instrument_head_{}'.format(len(self.instrument_head_linears)-2))(cls_head)
     
