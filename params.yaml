@@ -67,9 +67,9 @@ train:
     - 0.9
     - 0.95
     eval_interval: 100
-    visualize_interval: 1000
-    hear_interval: 0
-    save_interval: 1000
+    visualize_interval: 500
+    hear_interval: 500
+    save_interval: 500
     num_batches_evaluation: 5
     block_size: 300
     input_dimension: 128
@@ -77,7 +77,7 @@ train:
     feedforward_dimension: 1024
     n_layer_encoder: 8
     n_layer_decoder: 12
-    n_head: 8
+    n_head: 16
     dropout: 0.0
     condition_model_path: out/vae/checkpoints/vae_final_epoch_200.torch
     loss_fn:
@@ -114,7 +114,7 @@ train:
   - 70
   - 71
   - 72
-  max_inst_per_family: 5
+  max_inst_per_family: 20
   velocity:
   - 100
   device: auto
