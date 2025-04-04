@@ -181,8 +181,8 @@ def main():
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
     
-    sampler_train = CustomSampler(dataset=train_dataset, max_inst_per_family=20, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
-    sampler_valid = CustomSampler(dataset=valid_dataset, max_inst_per_family=20, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
+    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
