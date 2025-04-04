@@ -51,13 +51,13 @@ train:
   - 72
   random_seed: 42
   transformer:
-    batch_size: 64
+    batch_size: 96
     betas:
     - 0.9
     - 0.95
     block_size: 300
     condition_model_path: out/vae/checkpoints/vae_final_epoch_1000.torch
-    dropout: 0.0
+    dropout: 0.1
     epochs: 5000
     eval_interval: 100
     feedforward_dimension: 2048
