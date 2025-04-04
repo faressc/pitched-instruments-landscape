@@ -183,8 +183,7 @@ def main():
         n_layer_encoder = cfg.train.transformer.n_layer_encoder,
         n_layer_decoder = cfg.train.transformer.n_layer_decoder,
         n_head = cfg.train.transformer.n_head,
-        dropout = cfg.train.transformer.dropout,
-        number_of_pitch_classes = len(cfg.train.pitch),
+        dropout = cfg.train.transformer.dropout
     )
 
     print(f"Creating the transformer model with config: {transformer_config}")

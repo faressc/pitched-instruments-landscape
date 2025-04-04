@@ -19,7 +19,7 @@ class GesamTransformer(nn.Module):
         self.device = device
         
         self.input_projection_encoder_timbre = nn.Linear(1,self.config['internal_dimension']).to(device)
-        self.input_projection_encoder_pitch = nn.Embedding(self.config['number_of_pitch_classes'],self.config['internal_dimension']).to(device)
+        self.input_projection_encoder_pitch = nn.Embedding(128,self.config['internal_dimension']).to(device)
 
         self.input_projection_decoder = nn.Linear(self.config['input_dimension'], self.config['internal_dimension']).to(device)
         self.input_posemb_decoder = nn.Embedding(self.config['block_size'], self.config['internal_dimension']).to(device)
