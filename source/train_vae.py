@@ -181,8 +181,8 @@ def main():
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
     
-    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
-    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, shuffle=True)
+    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, shuffle=True)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
@@ -204,7 +204,7 @@ def main():
     print(f"Length of valid dataloader: {len(valid_dataloader)}")
     
     print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
-    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128)
+    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128) # TODO: Fix the problem with num_notes!
 
     print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
