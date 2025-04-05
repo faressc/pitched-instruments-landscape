@@ -44,7 +44,9 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
     cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb)
+        # Convert ground truth pitch to one-hot encoding
+        gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float().to(device)
+        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb, gt_pitch_onehot)
         gt_cls = data['metadata']['pitch'].to(device)
                 
         rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = loss_fn(x = emb[:,:input_crop,:], 
@@ -85,7 +87,9 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     families = np.zeros((0))
     for i, data in enumerate(dl):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head  = model.forward(emb)
+        # Convert ground truth pitch to one-hot encoding
+        gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float()[:num_examples].to(device)
+        emb_pred, mean, var, note_cls, one_hot, cls_head  = model.forward(emb, gt_pitch_onehot)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
@@ -124,7 +128,9 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     embs_decoded = []
     for i, data in enumerate(data_loader):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb)
+        # Convert ground truth pitch to one-hot encoding
+        gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float()[:num_examples].to(device)
+        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb, gt_pitch_onehot)
 
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
         emb_pred = emb_pred.permute(0,2,1)
@@ -237,9 +243,9 @@ def main():
 
         writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, sync_interval=cfg.train.vae.eval_interval, remote_dir=remote_dir)
 
-        sample_inputs = torch.randn(1, 300, 128)
-        vae.eval()
-        writer.add_graph(vae, sample_inputs.to(device))
+        # sample_inputs = torch.randn(1, 300, 128)
+        # vae.eval()
+        # writer.add_graph(vae, sample_inputs.to(device))
 
     print("######## Training ########")
     for epoch in range(epochs+1):
@@ -251,7 +257,9 @@ def main():
             optimizer.zero_grad()
             
             emb = data['embeddings'].to(device)
-            emb_pred, mean, var, note_cls, one_hot, cls_head = vae.forward(emb)
+            # Convert ground truth pitch to one-hot encoding
+            gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float().to(device)
+            emb_pred, mean, var, note_cls, one_hot, cls_head = vae.forward(emb, gt_pitch_onehot)
             
             rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:], 
                                                               x_hat = emb_pred, 

@@ -48,19 +48,13 @@ class ConditionConvVAE(nn.Module):
 
         self.head_size = linears[-2]//2
 
-
-        self.classification_head = torch.nn.Linear(linears[-2], self.head_size)
         self.regression_head = torch.nn.Linear(linears[-2], self.head_size)
 
-        self.cla_head_norm = nn.LayerNorm(self.head_size)
         self.reg_head_norm = nn.LayerNorm(self.head_size)
 
         # fed by regression head
         self.mean = nn.Linear(self.head_size, linears[-1])
         self.var = nn.Linear(self.head_size, linears[-1])
-        
-        # fed by classification head
-        self.note_cls = nn.Linear(self.head_size, num_notes)
         
         self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, 512, 1024]
         
@@ -118,31 +112,23 @@ class ConditionConvVAE(nn.Module):
         self.num_notes = num_notes
         self = self.to(device)
 
-    def forward(self, input, encoder_only=False):
+    def forward(self, input, pitch_one_hot, encoder_only=False):
         input = input.to(self.device)
-        mean, logvar, note_cls, cls_head = self.encode(input)  # Assume var is actually logvar
+        mean, logvar, cls_head = self.encode(input)  # Assume var is actually logvar
 
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
         x = mean + std * epsilon  # Reparameterization trick
-
-        max_indices = torch.argmax(note_cls, dim=-1)
-
-        # Create a one-hot tensor
-        one_hot = torch.nn.functional.one_hot(max_indices, num_classes=note_cls.shape[-1]).float()
-        # Detach to prevent gradient flow
-        one_hot = one_hot.detach()
         
-
         # Reparameterization trick
         if encoder_only:
-            return mean, logvar, note_cls, one_hot, cls_head
+            return mean, logvar, pitch_one_hot, pitch_one_hot, cls_head
         
-        x = torch.cat((x,one_hot), dim=1)
+        x = torch.cat((x, pitch_one_hot), dim=1)
 
         x = self.decode(x)
         
-        return x, mean, logvar, note_cls, one_hot, cls_head
+        return x, mean, logvar, pitch_one_hot, pitch_one_hot, cls_head
 
 
     def encode(self, x):
@@ -168,15 +154,8 @@ class ConditionConvVAE(nn.Module):
         x_reg = self.reg_head_norm(x_reg)
         x_reg = self.relu(x_reg)
 
-        x_cla = self.classification_head(x)
-        x_cla = self.cla_head_norm(x_cla)
-        x_cla = self.relu(x_cla)
-
         mean = self.mean(x_reg)
         var = self.var(x_reg)
-        
-        note_cls = self.note_cls(x_cla)
-        
         
         cls_head = mean
         
@@ -188,9 +167,8 @@ class ConditionConvVAE(nn.Module):
                 cls_head = self.dropout(cls_head)
 
         cls_head = getattr(self, 'instrument_head_{}'.format(len(self.instrument_head_linears)-2))(cls_head)
-    
             
-        return mean, var, note_cls, cls_head
+        return mean, var, cls_head
 
     def decode(self, x):
         x = x.to(self.device)

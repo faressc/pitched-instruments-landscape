@@ -23,10 +23,10 @@ train:
     - 0.9
     - 0.95
     dropout_ratio: 0.2
-    eval_interval: 5
-    visualize_interval: 5
-    hear_interval: 40
-    save_interval: 40
+    eval_interval: 50
+    visualize_interval: 300
+    hear_interval: 300
+    save_interval: 1000
     input_crop: 150
     channels:
     - 128
@@ -44,7 +44,7 @@ train:
     rec_beta: 0.2
     rep_beta: 0.6
     spa_beta: 1.0
-    cla_beta: 0.12
+    cla_beta: 0.0
     inst_beta: 0.07
     reg_scaling_exp: 2.0
     calculate_vae_loss:
@@ -79,7 +79,7 @@ train:
     n_layer_decoder: 12
     n_head: 8
     dropout: 0.1
-    condition_model_path: out/vae/checkpoints/vae_final_epoch_1000.torch
+    condition_model_path: out/vae/checkpoints/vae_final_epoch_3000.torch
     loss_fn:
       _target_: torch.nn.MSELoss
       reduction: mean
@@ -119,7 +119,7 @@ train:
   - 100
   device: auto
   deterministic: true
-  vae_path: out/vae/checkpoints/vae_final_epoch_1000.torch
+  vae_path: out/vae/checkpoints/vae_final_epoch_3000.torch
   transformer_path: out/transformer/checkpoints/vae_final_epoch_5000.torch
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
