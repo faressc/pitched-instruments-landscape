@@ -47,13 +47,13 @@ def main():
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
 
-    print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
+    print(f"Creating the test dataset with db_path: {cfg.train.db_path_test}")
+    test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
     
-    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
-    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, velocity=[100], shuffle=True)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
+    sampler_test = CustomSampler(dataset=test_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
@@ -63,101 +63,83 @@ def main():
                                   num_workers=cfg.train.num_workers,
                                   )
 
-    print(f"Creating the valid dataloader with batch_size: {cfg.train.vae.batch_size}")
-    valid_dataloader = DataLoader(valid_dataset,
+    print(f"Creating the test dataloader with batch_size: {cfg.train.vae.batch_size}")
+    test_dataloader = DataLoader(test_dataset,
                                   batch_size=cfg.train.vae.batch_size,
-                                  sampler=sampler_valid,
+                                  sampler=sampler_test,
                                   drop_last=False,
                                   num_workers=cfg.train.num_workers,
                                   )
     
     print(f"Length of train dataloader: {len(train_dataloader)}")
-    print(f"Length of valid dataloader: {len(valid_dataloader)}")
+    print(f"Length of test dataloader: {len(test_dataloader)}")
     
-    print(f"Loading the condition model from path: {cfg.train.transformer.condition_model_path}")
-    condition_model = torch.load(cfg.train.transformer.condition_model_path, map_location=device, weights_only=False)
+    print(f"Loading the condition model from path: {cfg.train.vae_path}")
+    condition_model = torch.load(cfg.train.vae_path, map_location=device, weights_only=False)
     condition_model.device = device
     condition_model.eval()
 
-    
+    print("######## Evaluation ########")
+    print("Evaluating the condition model")
 
-    print("######## Training ########")
-    for epoch in range(epochs + 1):
-        #
-        # training epoch
-        #
-        model.train()
-        for i, data in enumerate(tqdm.tqdm(train_dataloader)):
-            # autoregressive loss transformer training
-            optimizer.zero_grad()
-            
+    # Function to calculate variance statistics for a dataloader
+    def calculate_variance_stats(dataloader, name):
+        pitches_per_instrument = dict()
+        instrument_ids_per_pitch = dict()
+
+        print(f"\nProcessing {name} data...")
+        for i, data in enumerate(tqdm.tqdm(dataloader)):
             emb = data["embeddings"].to(device)
-            
+            inst_id = data["metadata"]["instrument"]
+            pitch = data["metadata"]["pitch"]
+
             vae_output = condition_model.forward(emb)
-            timbre_cond = vae_output[1].detach()
-            pitch_cond = vae_output[4].detach()
+            timbre_cond = vae_output[1].detach().cpu().numpy()
+            pitch_cond = vae_output[4].detach().cpu().numpy()
 
-            # apply noise to condition vector for smoothing the output distribution
-            # timbre_cond += torch.randn_like(timbre_cond).to(device) * torch.exp(0.5*vae_output[2])
-            # pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
+            pitch_info = np.hstack((timbre_cond, np.expand_dims(pitch, axis=1)))
 
-            # concatenating timbre and pitch condition for putting into encoder of transformer
-            combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
+            for i, inst in enumerate(inst_id):
+                inst = int(inst)
+                pitches_per_instrument.setdefault(inst, np.zeros(shape=(0,3)))
+                pitches_per_instrument[inst] = np.vstack((pitches_per_instrument[inst], pitch_info[i]))
 
-            # emb_shifted is the transposed input vector (in time dimension) for autoregressive training
-            emb_shifted = emb[:,:-1,:]
-            emb_shifted = torch.cat((torch.zeros((emb_shifted.shape[0],1,128)).to(device),emb_shifted),dim=1).detach()
-            
-            logits = model.forward(xdec=emb_shifted, xenc=combined_cond)
-            loss = loss_fn(logits, emb)
-            
-            loss.backward()
-            optimizer.step()
-            
-        # adapt learning rate
-        if epoch in map(lambda x: int(epochs*x), lr_change_intervals):
-            # adapt learning rate with multiplier
-            for param_group in optimizer.param_groups:
-                param_group['lr'] *= lr_change_multiplier
-            print('changed learning rate to %.3e after epoch %d' % (optimizer.param_groups[0]['lr'], epoch))
+            instrument_info = np.hstack((timbre_cond, np.expand_dims(inst_id, axis=1)))
+            for i, p in enumerate(pitch):
+                p = int(p)
+                instrument_ids_per_pitch.setdefault(p, np.zeros(shape=(0,3)))
+                instrument_ids_per_pitch[p] = np.vstack((instrument_ids_per_pitch[p], instrument_info[i]))
 
-        model.eval()
-        if (epoch % cfg.train.transformer.eval_interval) == 0 and epoch > 0:
-            print()
-            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
-            print("TRAIN: Epoch %d: Train loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
-            if writer is not None:
-                writer.add_scalar("train/loss", losses[0], epoch)
-                writer.add_scalar("train/gen_loss", losses[1], epoch)
+        # Calculate the variance of the pitch for each instrument
+        pitch_variance_per_instrument = dict()
+        print(f"\n{name} - Pitch variance per instrument:")
+        for inst, pitch_info in pitches_per_instrument.items():
+            pitch_variance_per_instrument[inst] = np.var(pitch_info[:, :2], axis=0)
+            print(f"Instrument {inst} pitch variance: {pitch_variance_per_instrument[inst]}")
 
-            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
-            print("VALID: Epoch %d: Val loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
-            if writer is not None:
-                writer.add_scalar("valid/loss", losses[0], epoch)
-                writer.add_scalar("valid/gen_loss", losses[1], epoch)
+        instrument_variance_per_pitch = dict()
+        print(f"\n{name} - Instrument variance per pitch:")
+        for pitch, instrument_info in instrument_ids_per_pitch.items():
+            instrument_variance_per_pitch[pitch] = np.var(instrument_info[:, :2], axis=0)
+            print(f"Pitch {pitch} instrument variance: {instrument_variance_per_pitch[pitch]}")
 
-        if (epoch % cfg.train.transformer.visualize_interval) == 0 and epoch > 0:
-            print("Visualizing the model")
-            visu_model(model, condition_model, train_dataloader, device=device, name_prefix="train", epoch=epoch, writer=writer)
-            visu_model(model, condition_model, valid_dataloader, device=device, name_prefix="valid", epoch=epoch, writer=writer)
+        mean_variance_per_instrument = np.zeros(shape=(0,2))
+        for inst, pitch_variance in pitch_variance_per_instrument.items():
+            mean_variance_per_instrument = np.vstack((mean_variance_per_instrument, pitch_variance))
+        print(f"\n{name} - Mean variance per instrument: {np.mean(mean_variance_per_instrument, axis=0)}")
 
-        if cfg.train.transformer.hear_interval > 0:
-            if (epoch % cfg.train.transformer.hear_interval) == 0 and epoch > 0:
-                print("Hearing the model")
-                hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch, writer=writer)
-                hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch, writer=writer)
+        mean_variance_per_pitch = np.zeros(shape=(0,2))
+        for pitch, instrument_variance in instrument_variance_per_pitch.items():
+            mean_variance_per_pitch = np.vstack((mean_variance_per_pitch, instrument_variance))
+        print(f"{name} - Mean variance per pitch: {np.mean(mean_variance_per_pitch, axis=0)}")
+        
+        return pitch_variance_per_instrument, instrument_variance_per_pitch
 
-        if (epoch % cfg.train.transformer.save_interval) == 0 and epoch > 0:
-            print("Saving model at epoch %d" % (epoch))
-            torch.save(model, 'out/transformer/checkpoints/transformer_epoch_%d.torch' % (epoch))
-
-        if writer is not None and epoch > 0:
-            writer.step()
-            
-    print("Training completed. Saving the model.")
-    torch.save(model, 'out/transformer/checkpoints/transformer_final_epoch_%d.torch' % (epochs))
-    if writer is not None:
-        writer.close()
+    # Calculate variance statistics for training data
+    train_pitch_variance, train_instrument_variance = calculate_variance_stats(train_dataloader, "Train")
+    
+    # Calculate variance statistics for test data
+    test_pitch_variance, test_instrument_variance = calculate_variance_stats(test_dataloader, "Test")
 
 
 if __name__ == '__main__':
