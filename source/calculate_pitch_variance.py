@@ -50,7 +50,7 @@ def main():
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
 
     print(f"Creating the test dataset with db_path: {cfg.train.db_path_test}")
-    test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
+    test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
     
     sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
     sampler_test = CustomSampler(dataset=test_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
