@@ -4,10 +4,10 @@ lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
 dropout_ratio: 0.2
-eval_interval: 5
-visualize_interval: 5
-hear_interval: 40
-save_interval: 40
+eval_interval: 50
+visualize_interval: 300
+hear_interval: 300
+save_interval: 1000
 
 # crop the time dimension to this length (150 -> input_crop)
 input_crop: 150
