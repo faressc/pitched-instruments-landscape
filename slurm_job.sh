@@ -14,8 +14,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:tesla:2
 #SBATCH --mem=100GB
-#SBATCH --time=7-00:00:00
-#SBATCH --partition=gpu
+#SBATCH --time=1-00:00:00
+#SBATCH --partition=gpu_short
 
 # Get email notifications for job status
 #SBATCH --mail-type=ALL
