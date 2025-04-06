@@ -1,9 +1,9 @@
-epochs: 3000
+epochs: 4000
 batch_size: 256
 lr: 1e-4 # learning rate
 wd: 0.05 # weight decay
 betas: [0.9, 0.95] # adam betas
-dropout_ratio: 0.2
+dropout_ratio: 0.1
 eval_interval: 50
 visualize_interval: 300
 hear_interval: 300
@@ -20,7 +20,7 @@ linears: [8192, 4096, 2048, 1024, 512, 2]
 
 # loss function parameter
 rec_beta: 0.2 # reconstruction loss, comparing input audio embedding and generated embedding
-rep_beta: 0.6 # repulsion loss for maximising the distance of in-batch samples
+rep_beta: 0.7 # repulsion loss for maximising the distance of in-batch samples
 spa_beta: 1.0 # spatial loss for limiting samples to the unicircle area to be used as a user interface
 cla_beta: 0.12 # classifier for estimating the pitch from the encoder head
 inst_beta: 0.07 # instrument classification from 2d embedding (for globally arranging samples)
