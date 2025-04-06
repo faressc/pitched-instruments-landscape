@@ -14,4 +14,4 @@ defaults:
   - transformer: transformer
 
 vae_path: out/vae/checkpoints/vae_final_epoch_3000.torch
-transformer_path: out/transformer/checkpoints/vae_final_epoch_5000.torch
+transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
