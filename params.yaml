@@ -114,10 +114,10 @@ train:
   - 70
   - 71
   - 72
-  max_inst_per_family: 40
+  max_inst_per_family: -1
   velocity:
   - 100
-  device: auto
+  device: cuda:2
   deterministic: true
   vae_path: out/vae/checkpoints/vae_final_epoch_3000.torch
   transformer_path: out/transformer/checkpoints/vae_final_epoch_5000.torch
