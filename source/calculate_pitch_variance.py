@@ -1,6 +1,7 @@
 import utils.debug
 
 import os
+import sys
 from pathlib import Path
 
 from dataset import MetaAudioDataset, CustomSampler
@@ -20,11 +21,26 @@ from transformers import EncodecModel
 import tqdm
 import numpy as np
 import matplotlib
+import shutil
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
 def main():
-    print("##### Starting Train Stage #####")
+    print("##### Starting Pitch variance Evaluation Stage #####")
+
+    exp_name = "surgy-trey"
+    log_path = os.path.join("out/ablation_study", exp_name)
+    if os.path.exists(log_path):
+        shutil.rmtree(log_path)
+    else:
+        os.makedirs(log_path)
+
+
+    log_file = open(os.path.join(log_path, "pitch_variance.log"), "w")
+    standard_output = sys.stdout
+
+    sys.stdout = log_file
+    print("##### Starting Pitch variance Evaluation Stage #####")
 
     cfg = OmegaConf.load("params.yaml")
     
@@ -47,13 +63,13 @@ def main():
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 
     print(f"Creating the test dataset with db_path: {cfg.train.db_path_test}")
-    test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
+    test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
     
-    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
-    sampler_test = CustomSampler(dataset=test_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=[100], shuffle=False)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity, shuffle=False)
+    sampler_test = CustomSampler(dataset=test_dataset, pitch=cfg.train.pitch, max_inst_per_family=-1, velocity=cfg.train.velocity, shuffle=False)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
@@ -88,7 +104,7 @@ def main():
         instrument_ids_per_pitch = dict()
 
         print(f"\nProcessing {name} data...")
-        for i, data in enumerate(tqdm.tqdm(dataloader)):
+        for i, data in enumerate(tqdm.tqdm(dataloader, desc=f"Processing {name} data", total=len(dataloader))):
             emb = data["embeddings"].to(device)
             inst_id = data["metadata"]["instrument"]
             pitch = data["metadata"]["pitch"]
@@ -141,6 +157,17 @@ def main():
     # Calculate variance statistics for test data
     test_pitch_variance, test_instrument_variance = calculate_variance_stats(test_dataloader, "Test")
 
+    print("######## Evaluation Complete ########")
+    # Close the log file
+    log_file.close()
+    sys.stdout = standard_output
+
+    print(f"All logs saved to {log_file.name}")
+    print(f"Train - Mean variance per instrument: {np.mean(list(train_pitch_variance.values()), axis=0)}")
+    print(f"Test - Mean variance per instrument: {np.mean(list(test_pitch_variance.values()), axis=0)}")
+    print(f"Train - Mean variance per pitch: {np.mean(list(train_instrument_variance.values()), axis=0)}")
+    print(f"Test - Mean variance per pitch: {np.mean(list(test_instrument_variance.values()), axis=0)}")
+    print("##### Pitch variance Evaluation Stage Complete #####")
 
 if __name__ == '__main__':
     main()
