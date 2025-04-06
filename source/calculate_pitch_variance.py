@@ -166,8 +166,8 @@ def main():
 
     print(f"All logs saved to {log_file.name}")
     print(f"Train - Mean variance per instrument: {np.mean(list(train_pitch_variance.values()), axis=0)}")
-    print(f"Test - Mean variance per instrument: {np.mean(list(test_pitch_variance.values()), axis=0)}")
     print(f"Train - Mean variance per pitch: {np.mean(list(train_instrument_variance.values()), axis=0)}")
+    print(f"Test - Mean variance per instrument: {np.mean(list(test_pitch_variance.values()), axis=0)}")
     print(f"Test - Mean variance per pitch: {np.mean(list(test_instrument_variance.values()), axis=0)}")
     print("##### Pitch variance Evaluation Stage Complete #####")
 
