@@ -31,23 +31,19 @@ cfg = OmegaConf.load("params.yaml")
 config.set_random_seeds(cfg.train.random_seed)
 # Prepare the requested device for training. Use cpu if the requested device is not available 
 device = config.prepare_device(cfg.train.device)
-batch_size = 32
 
-
-
-print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, max_inst_per_family=-1, shuffle=False)
+print(f"Creating the train dataset and dataloader with db_path: {cfg.train.db_path_train}")
+train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
+sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, max_inst_per_family=cfg.train.max_inst_per_family, shuffle=False)
 dl = DataLoader(train_dataset,
-                batch_size=batch_size,
+                batch_size=cfg.train.vae.batch_size,
                 sampler=sampler_train,
                 drop_last=False,
-                # num_workers=cfg.train.num_workers,
+                num_workers=cfg.train.num_workers,
                 )
 
 
 encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
-
 
 vae = torch.load(cfg.train.vae_path, map_location=device, weights_only=False)
 vae.device = device
@@ -59,7 +55,6 @@ for i in range(128):
     pitch_timbres[i] = np.zeros((0,3))
     instrument_ids[i] = []
 
-index = 0
 for s in tqdm.tqdm(dl):
     _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
     pitch_classification = pitch_classification.argmax(dim=1)
@@ -71,17 +66,10 @@ for s in tqdm.tqdm(dl):
     for t,p,f,id in zip(timbre_embedding, pitch_classification, family, instrument_id):
         pitch_timbres[p] = np.vstack((pitch_timbres[p], np.hstack((t,f))))
         instrument_ids[p].append(id)
-    index += 1
-    if index == 100:
-        break
-        
-
-
-pitches = cfg.train.pitch
 
 family_colors = ['red', 'blue', 'green', 'orange', 'purple', 'pink', 'brown', 'gray', 'cyan', 'magenta', 'yellow']
 
-for pt in range(min(pitches), max(pitches)+1):
+for pt in range(min(cfg.train.pitch), max(cfg.train.pitch)+1):
     print('pitch %d: %d number of points' % (pt, len(pitch_timbres[pt])))
     # Create the scatter plot
     fig, ax = plt.subplots(1, figsize=(6, 6))
@@ -97,12 +85,10 @@ for pt in range(min(pitches), max(pitches)+1):
         ax.scatter(pitch_timbres[pt][i,0], pitch_timbres[pt][i,1],
                    c=point_colors[i],
                    edgecolor='k',
-                    # label=instrument_ids[pt][i],
+                #    label=instrument_ids[pt][i],
                    s=50)
         
     # ax.legend(loc='upper right', fontsize=8)
-
-    # ax.axis('off')
 
     # Set axis limits and equal scale
     ax.set_xlim(-1, 1)

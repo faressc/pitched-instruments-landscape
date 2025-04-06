@@ -1,5 +1,5 @@
 epochs: 5000
-batch_size: 96
+batch_size: 64
 learning_rate: 1e-4  # max learning rate
 weight_decay: 0.05
 betas: [0.9, 0.95]  # adam betas
@@ -13,13 +13,14 @@ num_batches_evaluation: 5 # how many batches of samples should be generated in e
 block_size: 300
 input_dimension: 128
 internal_dimension: 512
-feedforward_dimension: 2048
+feedforward_dimension: 4096
 n_layer_encoder: 8
 n_layer_decoder: 12
 n_head: 8
-dropout: 0.1
+dropout: 0.2
+var_beta: 10
 
-condition_model_path: out/vae/checkpoints/vae_final_epoch_1000.torch
+condition_model_path: out/vae/checkpoints/vae_final_epoch_3000.torch
 
 loss_fn:
   _target_: torch.nn.MSELoss
