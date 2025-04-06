@@ -183,12 +183,11 @@ class ConditionConvVAE(nn.Module):
         for i in range(len(self.instrument_head_linears)-2):
             cls_head = getattr(self, 'instrument_head_{}'.format(i))(cls_head)
             cls_head = getattr(self, 'instrument_head_norm_{}'.format(i))(cls_head)
-            # cls_head = self.relu(cls_head)
-            # if i > 2:
-            #     cls_head = self.dropout(cls_head)
+            cls_head = self.relu(cls_head)
+            if i > 3:
+                cls_head = self.dropout(cls_head)
 
         cls_head = getattr(self, 'instrument_head_{}'.format(len(self.instrument_head_linears)-2))(cls_head)
-    
             
         return mean, var, note_cls, cls_head
 
@@ -199,7 +198,8 @@ class ConditionConvVAE(nn.Module):
             x = getattr(self, 'dec_lin{}'.format(i))(x)
             x = getattr(self, 'dec_lin_norm{}'.format(i))(x)
             x = self.relu(x)
-            x = self.dropout(x)
+            if i > 1:
+                x = self.dropout(x)
 
         x = x.view([x.shape[0], self.dec_channels[0], self.deconv_sizes[0]]) # batch, channels, time
 
