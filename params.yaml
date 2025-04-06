@@ -42,7 +42,7 @@ train:
     - 512
     - 2
     rec_beta: 0.2
-    rep_beta: 0.6
+    rep_beta: 0.0
     spa_beta: 1.0
     cla_beta: 0.12
     inst_beta: 0.07
