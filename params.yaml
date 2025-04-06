@@ -45,7 +45,7 @@ train:
     rep_beta: 0.6
     spa_beta: 1.0
     cla_beta: 0.12
-    inst_beta: 0.07
+    inst_beta: 0.0
     reg_scaling_exp: 2.0
     calculate_vae_loss:
       _target_: vae.calculate_vae_loss
@@ -117,7 +117,7 @@ train:
   max_inst_per_family: 40
   velocity:
   - 100
-  device: auto
+  device: cuda:2
   deterministic: true
   vae_path: out/vae/checkpoints/vae_final_epoch_3000.torch
   transformer_path: out/transformer/checkpoints/vae_final_epoch_5000.torch
