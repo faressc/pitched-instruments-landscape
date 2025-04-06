@@ -110,8 +110,10 @@ def main():
             emb = data["embeddings"].to(device)
             inst_id = data["metadata"]["instrument"]
             pitch = data["metadata"]["pitch"]
+            # Convert ground truth pitch to one-hot encoding
+            gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float().to(device)
 
-            vae_output = condition_model.forward(emb)
+            vae_output = condition_model.forward(emb, gt_pitch_onehot)
             timbre_cond = vae_output[1].detach().cpu().numpy()
             pitch_cond = vae_output[4].detach().cpu().numpy()
 
