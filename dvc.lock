@@ -48,8 +48,8 @@ stages:
       size: 16662
     - path: source/vae.py
       hash: md5
-      md5: d59275b507e1b02bc0f667b5101c663d
-      size: 10941
+      md5: 71b077c8fdab0731882d8cd8fb14da4e
+      size: 10939
     params:
       params.yaml:
         train:
@@ -118,7 +118,7 @@ stages:
             n_layer_decoder: 12
             n_head: 8
             dropout: 0.1
-            condition_model_path: out/vae/checkpoints/vae_final_epoch_3000.torch
+            condition_model_path: out/vae/checkpoints/vae_final_epoch_1000.torch
             loss_fn:
               _target_: torch.nn.MSELoss
               reduction: mean
@@ -163,8 +163,8 @@ stages:
     outs:
     - path: out/vae/
       hash: md5
-      md5: 4f60139fcef1c9e9b9966bd26dc08770.dir
-      size: 7267088948
+      md5: cfc1902c123b38bfdfe9caa952fe43ed.dir
+      size: 7267097131
       nfiles: 18
   train_transformer:
     cmd: python -u source/train_transformer.py
