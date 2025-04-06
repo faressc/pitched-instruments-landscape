@@ -32,6 +32,8 @@ def main():
     log_path = os.path.join("out/ablation_study", exp_name)
     if os.path.exists(log_path):
         shutil.rmtree(log_path)
+        os.makedirs(log_path)
+        print(f"Log path {log_path} already exists. Removing it and creating a new one.")
     else:
         os.makedirs(log_path)
 
