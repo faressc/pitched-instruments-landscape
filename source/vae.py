@@ -220,15 +220,15 @@ class ConditionConvVAE(nn.Module):
     def initialize_weights(self):
         for layer in self.modules():
             if isinstance(layer, nn.Conv1d):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)
             if isinstance(layer, nn.ConvTranspose1d):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
             if isinstance(layer, nn.Linear):
-                nn.init.xavier_normal_(layer.weight, gain=1)
+                nn.init.xavier_normal_(layer.weight, gain=2)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
@@ -279,18 +279,18 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
     diff_class = 1.0 - same_class
 
     eps = 1e-6
-    margin = 1.0  # margin for pushing away different classes
+    margin = 0.25  # margin for pushing away different classes
 
     # Attractive loss (same class): encourage close latent vectors
     attractive_loss = (same_class * dists**2).sum() / (same_class.sum() + eps)
 
     # Repulsive loss (different class): encourage margin between different classes
-    repulsive_loss = (diff_class * torch.clamp(margin - dists, min=0)**2).sum() / (diff_class.sum() + eps) * 0.1
+    repulsive_loss = (diff_class * torch.clamp(margin - dists, min=0)**2).sum() / (diff_class.sum() + eps)
 
     neighbor_loss = attractive_loss + repulsive_loss
 
 
-    kl_loss = 0.1 * -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) / batch_size
+    kl_loss = -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) / batch_size
 
 
     # # spatial regularization loss
@@ -320,6 +320,6 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
 
     return rec_beta * reproduction_loss, \
     rep_beta * regularization_scaling(warmup_beta_rep, reg_scaling_exp) * neighbor_loss, \
-    spa_beta * spatial_loss + kl_loss, \
+    spa_beta * spatial_loss + 0.000 * kl_loss, \
     cla_beta * cls_loss, \
-    warmup_beta_inst_cls * inst_beta * instr_loss
+    0 * warmup_beta_inst_cls * inst_beta * instr_loss

@@ -107,6 +107,8 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     # plot the latent as scatters
     fig2 = plt.figure(2)
     plt.scatter(means[:,0], means[:,1], c=families)
+    plt.xlim(-1, 1)
+    plt.ylim(-1, 1)
     plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
 
     if writer is not None:
