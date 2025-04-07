@@ -35,14 +35,14 @@ batch_size = 32
 
 
 
-print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
-train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
+print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_train}")
+train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 sampler = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, max_inst_per_family=cfg.train.max_inst_per_family, shuffle=False)
 dl = DataLoader(train_dataset,
                 batch_size=batch_size,
                 sampler=sampler,
                 drop_last=False,
-                # num_workers=cfg.train.num_workers,
+                num_workers=cfg.train.num_workers,
                 )
 
 
