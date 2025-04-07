@@ -231,17 +231,18 @@ def main():
             optimizer.zero_grad()
             
             emb = data["embeddings"].to(device)
-            gt_pitch_onehot = F.one_hot(data['metadata']['pitch'], num_classes=128).float().to(device)            
             
             vae_output = condition_model.forward(emb)
-            timbre_cond_mean = vae_output[1].detach()
-            timbre_cond_logvar = vae_output[2].detach()
+            timbre_cond = vae_output[1].detach()
+            pitch_cond = vae_output[4].detach()
 
             # apply noise to condition vector for smoothing the output distribution
-            timbre_cond = timbre_cond_mean + torch.randn_like(timbre_cond_mean).to(device) * torch.exp(0.5*timbre_cond_logvar) * cfg.train.transformer.var_beta
+            # timbre_cond += torch.randn_like(timbre_cond).to(device) * torch.exp(0.5*vae_output[2])
+            # pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
 
-            # concatenating timbre and ground truth pitch for putting into encoder of transformer
-            combined_cond = torch.cat((timbre_cond, gt_pitch_onehot), dim=1)
+            # TODO: Try transformer with ground truth pitch
+            # concatenating timbre and pitch condition for putting into encoder of transformer
+            combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
             # emb_shifted is the transposed input vector (in time dimension) for autoregressive training
             emb_shifted = emb[:,:-1,:]
