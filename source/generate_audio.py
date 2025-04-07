@@ -18,7 +18,7 @@ from dataset import MetaAudioDataset
 import utils.ffmpeg_helper as ffmpeg
 
 
-out_dir = 'out/generate_audio/'
+out_dir = 'out/generate_audio_final/'
 if os.path.exists(out_dir):
     shutil.rmtree(out_dir)
 os.makedirs(out_dir, exist_ok=True)

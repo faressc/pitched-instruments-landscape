@@ -20,7 +20,7 @@ from dataset import MetaAudioDataset, CustomSampler
 
 import shutil
 
-out_dir = 'out/generate_scatter/'
+out_dir = 'out/generate_scatter_final/'
 if os.path.exists(out_dir):
     shutil.rmtree(out_dir)
 os.makedirs(out_dir, exist_ok=True)
@@ -37,10 +37,10 @@ batch_size = 32
 
 print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_valid}")
 train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False)
-sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
+sampler = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True)
 dl = DataLoader(train_dataset,
                 batch_size=batch_size,
-                sampler=sampler_train,
+                sampler=sampler,
                 drop_last=False,
                 # num_workers=cfg.train.num_workers,
                 )
@@ -59,13 +59,14 @@ for i in range(128):
 
 for s in tqdm.tqdm(dl):
     _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
+    gt_pitch = s['metadata']['pitch'].cpu().detach().numpy()
     pitch_classification = pitch_classification.argmax(dim=1)
     pitch_classification = pitch_classification.cpu().detach().numpy()
     timbre_embedding = timbre_embedding.cpu().detach().numpy()
     family = s['metadata']['family'].numpy()
     # family = s['metadata']['instrument'].numpy()
     
-    for t,p,f in zip(timbre_embedding, pitch_classification, family):
+    for t,p,f in zip(timbre_embedding, gt_pitch, family):
         pitch_timbres[p] = np.vstack((pitch_timbres[p], np.hstack((t,f))))
         
 
