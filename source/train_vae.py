@@ -55,6 +55,7 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
                                                             gt_cls = gt_cls, 
                                                             cls_head = cls_head,
                                                             gt_inst = data['metadata']['instrument'].to(device), 
+                                                            gt_fam = data['metadata']['family'].to(device), 
                                                             current_epoch = current_epoch,
                                                             )
 
@@ -89,7 +90,7 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
-        families = np.concat((families, data['metadata']['instrument'][:num_examples].numpy()))
+        families = np.concat((families, data['metadata']['family'][:num_examples].numpy()))
         if len(embs) >= num_examples: # skip when ds gets too large
             break
 
@@ -178,7 +179,7 @@ def main():
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
-    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
+    train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
     valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
@@ -263,6 +264,7 @@ def main():
                                                               gt_cls = data['metadata']['pitch'].to(device), 
                                                               cls_head = cls_head,
                                                               gt_inst = data['metadata']['instrument'].to(device), 
+                                                              gt_fam = data['metadata']['family'].to(device),
                                                               current_epoch = epoch,
                                                               )
             
