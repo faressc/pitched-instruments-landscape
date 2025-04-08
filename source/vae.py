@@ -62,7 +62,8 @@ class ConditionConvVAE(nn.Module):
         # fed by classification head
         self.note_cls = nn.Linear(self.head_size, num_notes)
         
-        self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, 512, 1024]
+        # self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, 512, 1024]
+        self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 11]
         
         for hn in range(len(self.instrument_head_linears)-1):
             l1 = self.instrument_head_linears[hn]
@@ -234,14 +235,14 @@ class ConditionConvVAE(nn.Module):
 
 
 # TODO: Add KL divergence loss
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, rep_beta, spa_beta, cla_beta, inst_beta, reg_scaling_exp):
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst, gt_fam, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, rep_beta, spa_beta, cla_beta, inst_beta, reg_scaling_exp):
     
     b, t, f = x.shape
     
     
     cls_loss = cls_loss_fn(note_cls, gt_cls)
     
-    instr_loss = cls_loss_fn(cls_head, gt_inst)
+    instr_loss = cls_loss_fn(cls_head, gt_fam)
     
     #
     # reproduction loss
@@ -303,14 +304,9 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
 
     
     
-    # # old linear way
-    warmup_ratio_rep = 0.0
-    warmup_ratio_inst = 0.0
-
-    
     training_progress = (current_epoch/num_epochs)
-    warmup_beta_rep = 0.0 if training_progress < warmup_ratio_rep else training_progress
-    warmup_beta_inst_cls = 0.0 if training_progress < warmup_ratio_inst else training_progress
+    # warmup_beta_rep = 0.0 if training_progress < warmup_ratio_rep else training_progress
+    # warmup_beta_inst_cls = 0.0 if training_progress < warmup_ratio_inst else training_progress
 
 
 
@@ -319,7 +315,7 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
     
 
     return rec_beta * reproduction_loss, \
-    rep_beta * regularization_scaling(warmup_beta_rep, reg_scaling_exp) * neighbor_loss, \
+    rep_beta * regularization_scaling(training_progress, reg_scaling_exp) * neighbor_loss, \
     spa_beta * spatial_loss + 0.000 * kl_loss, \
     cla_beta * cls_loss, \
-    0 * warmup_beta_inst_cls * inst_beta * instr_loss
+    (1-regularization_scaling(training_progress, reg_scaling_exp)) * inst_beta * instr_loss
