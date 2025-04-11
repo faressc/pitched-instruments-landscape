@@ -90,7 +90,7 @@ train:
       loss_fn:
         _target_: torch.nn.MSELoss
         reduction: sum
-      num_epochs: 4000
+      num_epochs: 5000
       weighted_reproduction: false
     channels:
     - 128
@@ -100,7 +100,7 @@ train:
     - 2048
     cla_beta: 0.12
     dropout_ratio: 0.1
-    epochs: 4000
+    epochs: 5000
     eval_interval: 50
     hear_interval: 300
     input_crop: 150
@@ -117,9 +117,9 @@ train:
     reg_scaling_exp: 2.0
     rep_beta: 0.7
     save_interval: 1000
-    spa_beta: 1.0
-    visualize_interval: 300
+    spa_beta: 0.1
+    visualize_interval: 50
     wd: 0.05
-  vae_path: out/vae/checkpoints/vae_final_epoch_3000.torch
+  vae_path: out/vae/checkpoints/vae_epoch_3000.torch
   velocity:
   - 100

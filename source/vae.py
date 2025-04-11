@@ -178,7 +178,9 @@ class ConditionConvVAE(nn.Module):
         note_cls = self.note_cls(x_cla)
         
         
-        cls_head = mean
+        cls_head = mean.clone()
+        
+        cls_head += torch.randn(size=cls_head.shape, device=self.device) * 0.05
         
         for i in range(len(self.instrument_head_linears)-2):
             cls_head = getattr(self, 'instrument_head_{}'.format(i))(cls_head)
@@ -218,15 +220,15 @@ class ConditionConvVAE(nn.Module):
     def initialize_weights(self):
         for layer in self.modules():
             if isinstance(layer, nn.Conv1d):
-                nn.init.xavier_normal_(layer.weight, gain=2)
+                nn.init.xavier_normal_(layer.weight, gain=1)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)
             if isinstance(layer, nn.ConvTranspose1d):
-                nn.init.xavier_normal_(layer.weight, gain=2)
+                nn.init.xavier_normal_(layer.weight, gain=1)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
             if isinstance(layer, nn.Linear):
-                nn.init.xavier_normal_(layer.weight, gain=2)
+                nn.init.xavier_normal_(layer.weight, gain=1)
                 if layer.bias is not None:
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
@@ -261,37 +263,63 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_cls, cls_head, gt_inst,
     # regularization loss terms
     #
     
+    
+    
+    
+    
+    
     # neighboring loss
-    min_dist = 2 / math.sqrt(batch_size) # distance between samples that is desired
+    dists = torch.cdist(mean, mean, p=2)  # shape: [B, B]
     
-    dists = torch.cdist(mean, mean, p=2) + torch.eye(mean.size(0), device=mean.device) * 1e-8
+    # Create label comparison matrix
+    gt_inst_i = gt_inst.unsqueeze(1).expand(-1, b)
+    gt_inst_j = gt_inst.unsqueeze(0).expand(b, -1)
     
-    eps = 1e-3
-    dists = torch.where(dists < min_dist, dists, torch.ones_like(dists)*1000000)
-    repulsion_effect = 1.0 / (dists + eps)
-    
-    mask = torch.eye(dists.size(0), device=device).bool()
-    repulsion_effect = repulsion_effect.masked_fill_(mask, 0)
-    neighbor_loss = repulsion_effect.sum() / (b * (1/eps))
+    same_class = (gt_inst_i == gt_inst_j).float()
+    diff_class = 1.0 - same_class
+
+    eps = 1e-6
+    margin = 1.0  # margin for pushing away different classes
+
+    # Attractive loss (same class): encourage close latent vectors
+    attractive_loss = (same_class * dists**2).sum() / (same_class.sum() + eps)
+
+    # Repulsive loss (different class): encourage margin between different classes
+    repulsive_loss = (diff_class * torch.clamp(margin - dists, min=0)**2).sum() / (diff_class.sum() + eps) * 0.1
+
+    neighbor_loss = attractive_loss + repulsive_loss
 
 
-    # spatial regularization loss
+    kl_loss = 0.1 * -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) / batch_size
+
+
+    # # spatial regularization loss
     l_orig = torch.linalg.vector_norm(mean,ord=2,dim=1)
     zero_tensor = torch.FloatTensor([0.0]).to(device)
     spatial_loss = torch.max((l_orig-1.0),zero_tensor.expand_as(l_orig)).mean()
     
+    # latent_norms = torch.norm(mean, dim=1)  # shape: [B]
+    # spatial_loss = torch.mean((latent_norms - 1.0)**2)
+
+    
+    
     # # old linear way
-    # warmup_ratio = 0.3
-    # warmup_beta = 0.0 if training_progress < warmup_ratio else training_progress
+    warmup_ratio_rep = 0.0
+    warmup_ratio_inst = 0.0
 
     
     training_progress = (current_epoch/num_epochs)
+    warmup_beta_rep = 0.0 if training_progress < warmup_ratio_rep else training_progress
+    warmup_beta_inst_cls = 0.0 if training_progress < warmup_ratio_inst else training_progress
+
+
 
     def regularization_scaling(x, reg_scaling_exp):
         return x**reg_scaling_exp
+    
 
     return rec_beta * reproduction_loss, \
-    rep_beta * regularization_scaling(training_progress, reg_scaling_exp) * neighbor_loss, \
-    spa_beta * spatial_loss, \
+    rep_beta * regularization_scaling(warmup_beta_rep, reg_scaling_exp) * neighbor_loss, \
+    spa_beta * spatial_loss + kl_loss, \
     cla_beta * cls_loss, \
-    inst_beta * instr_loss
+    warmup_beta_inst_cls * inst_beta * instr_loss
