@@ -1,25 +1,25 @@
 epochs: 5000
-batch_size: 96
+batch_size: 64
 learning_rate: 1e-4  # max learning rate
 weight_decay: 0.05
 betas: [0.9, 0.95]  # adam betas
-eval_interval: 100
-visualize_interval: 500
+eval_interval: 50
+visualize_interval: 50
 hear_interval: 500
 save_interval: 1000
-num_batches_evaluation: 5 # how many batches of samples should be generated in eval_model? Takes a lot of time!
+num_batches_evaluation: 10 # how many batches of samples should be generated in eval_model? Takes a lot of time!
 
 # transformer config
 block_size: 300
 input_dimension: 128
 internal_dimension: 512
-feedforward_dimension: 2048
-n_layer_encoder: 8
+feedforward_dimension: 4096
+n_layer_encoder: 4
 n_layer_decoder: 12
-n_head: 8
-dropout: 0.1
+n_head: 16
+dropout: 0.2
 
-condition_model_path: out/vae/checkpoints/vae_final_epoch_1000.torch
+condition_model_path: out/vae/checkpoints/vae_final_epoch_10000.torch
 
 loss_fn:
   _target_: torch.nn.MSELoss
