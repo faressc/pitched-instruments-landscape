@@ -63,6 +63,11 @@ cd $TUSTU_EXP_TMP_DIR &&
 echo "Setting DVC cache directory..." &&
 dvc cache dir $DEFAULT_DIR/.dvc/cache &&
 
+
+
+
+
+
 # # Train VAE model
 
 # # Pull the data from the DVC remote repository
@@ -76,6 +81,11 @@ dvc cache dir $DEFAULT_DIR/.dvc/cache &&
 # echo "Running experiment..." &&
 # dvc exp run -s train_vae $EXP_PARAMS &&
 
+
+
+
+
+
 # Train Transformer model
 
 # Pull the data from the DVC remote repository
@@ -88,6 +98,11 @@ dvc pull out/vae;
 # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
 echo "Running experiment..." &&
 dvc exp run -s train_transformer $EXP_PARAMS -f &&
+
+
+
+
+
 
 # Push the results to the DVC remote repository
 echo "Pushing experiment..." &&

@@ -73,7 +73,7 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
 
     b = np.array(cls_pred) == np.array(cls_gt)
     acc01 = np.count_nonzero(b) / len(b)
-
+    
     rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = np.array(losses).mean(axis=0)
     return rec_loss, rep_loss, spa_loss, cla_loss, inst_loss, acc01
 
