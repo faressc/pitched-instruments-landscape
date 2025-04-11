@@ -7,7 +7,7 @@ eval_interval: 50
 visualize_interval: 50
 hear_interval: 500
 save_interval: 1000
-num_batches_evaluation: 10 # how many batches of samples should be generated in eval_model? Takes a lot of time!
+num_batches_evaluation: 20 # how many batches of samples should be generated in eval_model? Takes a lot of time!
 
 # transformer config
 block_size: 300
