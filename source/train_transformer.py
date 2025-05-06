@@ -233,7 +233,8 @@ def main():
             emb = data["embeddings"].to(device)
             
             vae_output = condition_model.forward(emb)
-            timbre_cond = vae_output[1].detach() + torch.randn_like(vae_output[1]).to(device) * 0.05
+            timbre_cond = vae_output[1].detach()
+                # timbre_cond += vae_output[2].detach()
             pitch_cond = vae_output[4].detach()
 
             # apply noise to condition vector for smoothing the output distribution

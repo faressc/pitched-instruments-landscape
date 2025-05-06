@@ -56,7 +56,7 @@ for i in range(128):
     instrument_ids[i] = []
 
 for s in tqdm.tqdm(dl):
-    _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
+    _, timbre_embedding, _, _, pitch_classification, family_cls = vae.forward(s['embeddings'].to(device))
     pitch_classification = pitch_classification.argmax(dim=1)
     pitch_classification = pitch_classification.cpu().detach().numpy()
     timbre_embedding = timbre_embedding.cpu().detach().numpy()
