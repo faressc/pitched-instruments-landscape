@@ -63,46 +63,31 @@ cd $TUSTU_EXP_TMP_DIR &&
 echo "Setting DVC cache directory..." &&
 dvc cache dir $DEFAULT_DIR/.dvc/cache &&
 
-
-
-
-
-
-# # Train VAE model
-
-# # Pull the data from the DVC remote repository
-# # if [ -f "data/raw.dvc" ]; then
-# echo "Pulling data with DVC..." 
-# dvc pull data/processed;
-# dvc pull out/transformer;
-# # fi &&
-
-# # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
-# echo "Running experiment..." &&
-# dvc exp run -s train_vae $EXP_PARAMS &&
-
-
-
-
-
-
-# Train Transformer model
+# Train VAE model
 
 # Pull the data from the DVC remote repository
 # if [ -f "data/raw.dvc" ]; then
 echo "Pulling data with DVC..." 
 dvc pull data/processed;
-dvc pull out/vae;
+dvc pull out/transformer;
 # fi &&
 
 # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
 echo "Running experiment..." &&
-dvc exp run -s train_transformer $EXP_PARAMS -f &&
+dvc exp run -s train_vae $EXP_PARAMS &&
 
+# # Train Transformer model
 
+# # Pull the data from the DVC remote repository
+# # if [ -f "data/raw.dvc" ]; then
+# echo "Pulling data with DVC..." 
+# dvc pull data/processed;
+# dvc pull out/vae;
+# # fi &&
 
-
-
+# # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
+# echo "Running experiment..." &&
+# dvc exp run -s train_transformer $EXP_PARAMS -f &&
 
 # Push the results to the DVC remote repository
 echo "Pushing experiment..." &&
