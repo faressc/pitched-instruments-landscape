@@ -44,38 +44,38 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
     cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb)
-        gt_cls = data['metadata']['pitch'].to(device)
-                
-        rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = loss_fn(x = emb[:,:input_crop,:], 
+        emb_pred, mean, var, note_cls, one_hot, family_cls = model.forward(emb)
+        gt_note_cls = data['metadata']['pitch'].to(device)
+
+        rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = loss_fn(x = emb[:,:input_crop,:], 
                                                             x_hat = emb_pred, 
                                                             mean = mean, 
                                                             var = var, 
                                                             note_cls = note_cls, 
-                                                            gt_cls = gt_cls, 
-                                                            cls_head = cls_head,
+                                                            gt_note_cls = gt_note_cls, 
+                                                            family_cls = family_cls,
                                                             gt_inst = data['metadata']['instrument'].to(device), 
-                                                            gt_fam = data['metadata']['family'].to(device), 
+                                                            gt_family = data['metadata']['family'].to(device), 
                                                             current_epoch = current_epoch,
                                                             )
 
     
         
-        
-        
-        losses.append([rec_loss.item(), rep_loss.item(), spa_loss.item(), cla_loss.item(), inst_loss.item()])
-        
+
+
+        losses.append([rec_loss.item(), rep_loss.item(), spa_loss.item(), kl_loss.item(), cla_loss.item(), inst_loss.item()])
+
         cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
-        cls_gt.extend(gt_cls.cpu().numpy())
+        cls_gt.extend(gt_note_cls.cpu().numpy())
         
         if i >= max_num_batches: # data set can be very large
             break
 
     b = np.array(cls_pred) == np.array(cls_gt)
     acc01 = np.count_nonzero(b) / len(b)
-    
-    rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = np.array(losses).mean(axis=0)
-    return rec_loss, rep_loss, spa_loss, cla_loss, inst_loss, acc01
+
+    rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = np.array(losses).mean(axis=0)
+    return rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01
 
 @torch.no_grad()
 def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None):
@@ -86,7 +86,7 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     families = np.zeros((0))
     for i, data in enumerate(dl):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head  = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot, family_cls  = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
@@ -127,7 +127,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     embs_decoded = []
     for i, data in enumerate(data_loader):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, cls_head = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot, family_cls = model.forward(emb)
 
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
         emb_pred = emb_pred.permute(0,2,1)
@@ -182,10 +182,10 @@ def main():
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 
     print(f"Creating the valid dataset with db_path: {cfg.train.db_path_valid}")
-    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=False)
+    valid_dataset = MetaAudioDataset(db_path=cfg.train.db_path_valid, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
     
     sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity, shuffle=True)
-    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity, shuffle=True)
+    sampler_valid = CustomSampler(dataset=valid_dataset, pitch=cfg.train.pitch, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity, shuffle=False)
 
     print(f"Creating the train dataloader with batch_size: {cfg.train.vae.batch_size}")
     train_dataloader = DataLoader(train_dataset,
@@ -214,7 +214,7 @@ def main():
     print("Instantiating the loss functions.")
     
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
-    calculate_vae_loss = partial(calculate_vae_loss, device=device, rec_beta = cfg.train.vae.rec_beta, rep_beta = cfg.train.vae.rep_beta, spa_beta = cfg.train.vae.spa_beta, cla_beta = cfg.train.vae.cla_beta, inst_beta = cfg.train.vae.inst_beta, reg_scaling_exp = cfg.train.vae.reg_scaling_exp)
+    calculate_vae_loss = partial(calculate_vae_loss, device=device, rec_beta = cfg.train.vae.rec_beta, neighbor_beta = cfg.train.vae.neighbor_beta, spa_beta = cfg.train.vae.spa_beta, kl_beta = cfg.train.vae.kl_beta, note_cls_beta = cfg.train.vae.note_cls_beta, family_cls_beta = cfg.train.vae.family_cls_beta, reg_scaling_exp = cfg.train.vae.reg_scaling_exp)
 
     encodec_model = None
     if cfg.train.vae.hear_interval > 0:
@@ -254,21 +254,21 @@ def main():
             optimizer.zero_grad()
             
             emb = data['embeddings'].to(device)
-            emb_pred, mean, var, note_cls, one_hot, cls_head = vae.forward(emb)
+            emb_pred, mean, var, note_cls, one_hot, family_cls = vae.forward(emb)
             
-            rec_loss, rep_loss, spa_loss, cla_loss, inst_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:], 
+            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:], 
                                                               x_hat = emb_pred, 
                                                               mean = mean, 
                                                               var = var, 
                                                               note_cls = note_cls, 
-                                                              gt_cls = data['metadata']['pitch'].to(device), 
-                                                              cls_head = cls_head,
+                                                              gt_note_cls = data['metadata']['pitch'].to(device), 
+                                                              family_cls = family_cls,
                                                               gt_inst = data['metadata']['instrument'].to(device), 
-                                                              gt_fam = data['metadata']['family'].to(device),
+                                                              gt_family = data['metadata']['family'].to(device),
                                                               current_epoch = epoch,
                                                               )
             
-            loss = rec_loss + rep_loss + spa_loss + cla_loss + inst_loss
+            loss = rec_loss + rep_loss + spa_loss + kl_loss + cla_loss + inst_loss
             loss.backward()
             optimizer.step()
 
@@ -288,34 +288,36 @@ def main():
             # reconstruction error on validation dataset
             print()
                         
-            rec_loss, rep_loss, spa_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
+            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
                                 dl = train_dataloader, 
                                 device = device, 
                                 max_num_batches = 25, 
                                 loss_fn = calculate_vae_loss, 
                                 input_crop = cfg.train.vae.input_crop, 
                                 current_epoch=epoch)
-            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Instrument Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
+            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
             if writer is not None:
                 writer.add_scalar("train/reconstruction_loss", rec_loss, epoch)
                 writer.add_scalar("train/repulsion_loss", rep_loss, epoch)
                 writer.add_scalar("train/spatial_loss", spa_loss, epoch)
+                writer.add_scalar("train/kl_loss", kl_loss, epoch)
                 writer.add_scalar("train/classifier_loss", cla_loss, epoch)
                 writer.add_scalar("train/classifier_accuracy", acc01, epoch)
                 writer.add_scalar("train/instrument_loss", inst_loss, epoch)
 
-            rec_loss, rep_loss, spa_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
+            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
                                 dl = valid_dataloader, 
                                 device = device, 
                                 max_num_batches = 25, 
                                 loss_fn = calculate_vae_loss, 
                                 input_crop = cfg.train.vae.input_crop, 
                                 current_epoch=epoch)
-            print("VAL: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Instrument Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
+            print("VAL: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
             if writer is not None:
                 writer.add_scalar("valid/reconstruction_loss", rec_loss, epoch)
                 writer.add_scalar("valid/repulsion_loss", rep_loss, epoch)
                 writer.add_scalar("valid/spatial_loss", spa_loss, epoch)
+                writer.add_scalar("valid/kl_loss", kl_loss, epoch)
                 writer.add_scalar("valid/classifier_loss", cla_loss, epoch)
                 writer.add_scalar("valid/classifier_accuracy", acc01, epoch)
                 writer.add_scalar("valid/instrument_loss", inst_loss, epoch)
