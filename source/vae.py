@@ -8,7 +8,7 @@ import math
 
 
 class ConditionConvVAE(nn.Module):
-    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2, num_notes=128):
+    def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2, num_notes=128, num_instruments=1006, num_families=11):
         super(ConditionConvVAE, self).__init__()
         if padding is None:
             padding = kernel_size//2
@@ -62,19 +62,25 @@ class ConditionConvVAE(nn.Module):
         # fed by classification head
         self.note_cls = nn.Linear(self.head_size, num_notes)
         
-        # self.instrument_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, 512, 1024]
-        self.family_cls_head_linears = [linears[-1], 4, 8, 16, 32, 11]
-        
+        self.family_cls_head_linears = [linears[-1], 4, 8, 16, 32, num_families]
+
+        self.instrument_cls_head_linears = [linears[-1], 4, 8, 16, 32, 64, 32, 64, 128, 256, num_instruments]
+
         for hn in range(len(self.family_cls_head_linears)-1):
             l1 = self.family_cls_head_linears[hn]
             l2 = self.family_cls_head_linears[hn+1]
             setattr(self, 'family_cls_head_{}'.format(hn), nn.Linear(l1,l2))
             setattr(self, 'family_cls_head_norm_{}'.format(hn), nn.LayerNorm(l2))
-        
 
+        for hn in range(len(self.instrument_cls_head_linears)-1):
+            l1 = self.instrument_cls_head_linears[hn]
+            l2 = self.instrument_cls_head_linears[hn+1]
+            setattr(self, 'instrument_cls_head_{}'.format(hn), nn.Linear(l1,l2))
+            setattr(self, 'instrument_cls_head_norm_{}'.format(hn), nn.LayerNorm(l2))
+        
         dec_linears = linears[::-1]
         dec_channels = channels[::-1]
-        
+
         dec_linears[0] += num_notes
 
         # decoder
@@ -121,7 +127,7 @@ class ConditionConvVAE(nn.Module):
 
     def forward(self, input, encoder_only=False):
         input = input.to(self.device)
-        mean, logvar, note_cls, family_cls = self.encode(input)  # Assume var is actually logvar
+        mean, logvar, note_cls, family_cls, instrument_cls = self.encode(input)  # Assume var is actually logvar
 
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
@@ -137,13 +143,13 @@ class ConditionConvVAE(nn.Module):
 
         # Reparameterization trick
         if encoder_only:
-            return mean, logvar, note_cls, one_hot, family_cls
+            return mean, logvar, note_cls, one_hot, family_cls, instrument_cls
         
         x = torch.cat((x,one_hot), dim=1)
 
         x = self.decode(x)
         
-        return x, mean, logvar, note_cls, one_hot, family_cls
+        return x, mean, logvar, note_cls, one_hot, family_cls, instrument_cls
 
 
     def encode(self, x):
@@ -179,8 +185,9 @@ class ConditionConvVAE(nn.Module):
         note_cls = self.note_cls(x_cla)
         
         family_cls = mean.clone()
-        family_cls += torch.randn(size=family_cls.shape, device=self.device) * 0.05
-        
+        # family_cls += torch.randn(size=family_cls.shape, device=self.device) * 0.05
+        instrument_cls = mean.clone()
+
         for i in range(len(self.family_cls_head_linears)-2):
             family_cls = getattr(self, 'family_cls_head_{}'.format(i))(family_cls)
             family_cls = getattr(self, 'family_cls_head_norm_{}'.format(i))(family_cls)
@@ -190,7 +197,16 @@ class ConditionConvVAE(nn.Module):
 
         family_cls = getattr(self, 'family_cls_head_{}'.format(len(self.family_cls_head_linears)-2))(family_cls)
             
-        return mean, var, note_cls, family_cls
+        for i in range(len(self.instrument_cls_head_linears)-2):
+            instrument_cls = getattr(self, 'instrument_cls_head_{}'.format(i))(instrument_cls)
+            instrument_cls = getattr(self, 'instrument_cls_head_norm_{}'.format(i))(instrument_cls)
+            instrument_cls = self.relu(instrument_cls)
+            if i > 3:
+                instrument_cls = self.dropout(instrument_cls)
+
+        instrument_cls = getattr(self, 'instrument_cls_head_{}'.format(len(self.instrument_cls_head_linears)-2))(instrument_cls)
+
+        return mean, var, note_cls, family_cls, instrument_cls
 
     def decode(self, x):
         x = x.to(self.device)
@@ -232,15 +248,30 @@ class ConditionConvVAE(nn.Module):
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-# TODO: Add KL divergence loss
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, gt_inst, gt_family, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, neighbor_beta, spa_beta, kl_beta, note_cls_beta, family_cls_beta, reg_scaling_exp):
-    
+def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, gt_family, instrument_cls, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, neighbor_beta, spa_beta, kl_beta, note_cls_beta, family_cls_beta, instrument_cls_beta, reg_scaling_exp_neighbor, reg_scaling_exp_family, reg_scaling_exp_instrument, note_remap, instrument_remap):
+
     b, t, f = x.shape
     
+    # remap note and instrument classes
+    if note_remap is not None:
+        # Ensure note_remap is a tensor on the correct device
+        note_remap_tensor = torch.as_tensor(note_remap, device=gt_note_cls.device)
+        # For each value in gt_note_cls, find its index in note_remap
+        gt_note_cls = (gt_note_cls.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
+    
+    if instrument_remap is not None:
+        # Ensure instrument_remap is a tensor on the correct device
+        instrument_remap_tensor = torch.as_tensor(instrument_remap, device=gt_inst.device)
+    else:
+        instrument_remap_tensor = torch.unique(gt_inst)
+        
+    # For each value in gt_inst, find its index in instrument_remap
+    gt_inst = (gt_inst.unsqueeze(-1) == instrument_remap_tensor).nonzero(as_tuple=False)[..., -1]
     
     note_cls_loss = cls_loss_fn(note_cls, gt_note_cls)
     family_cls_loss = cls_loss_fn(family_cls, gt_family)
-    
+    instrument_cls_loss = cls_loss_fn(instrument_cls, gt_inst)
+
     #
     # reproduction loss
     #
@@ -256,15 +287,6 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, g
         reproduction_loss = loss_fn(x_hat*weight, x*weight) / rep_norm
     else:
         reproduction_loss = loss_fn(x_hat, x) / rep_norm
-
-    #
-    # regularization loss terms
-    #
-    
-    
-    
-    
-    
     
     # neighboring loss
     dists = torch.cdist(mean, mean, p=2)  # shape: [B, B]
@@ -287,32 +309,23 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, g
 
     neighbor_loss = attractive_loss + repulsive_loss
 
+    # KL divergence loss
     kl_loss = -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) / batch_size
-
 
     # # spatial regularization loss
     l_orig = torch.linalg.vector_norm(mean,ord=2,dim=1)
     zero_tensor = torch.FloatTensor([0.0]).to(device)
     spatial_loss = torch.max((l_orig-1.0),zero_tensor.expand_as(l_orig)).mean()
-    
-    # latent_norms = torch.norm(mean, dim=1)  # shape: [B]
-    # spatial_loss = torch.mean((latent_norms - 1.0)**2)
 
-    
-    
     training_progress = (current_epoch/num_epochs)
-    # warmup_beta_rep = 0.0 if training_progress < warmup_ratio_rep else training_progress
-    # warmup_beta_inst_cls = 0.0 if training_progress < warmup_ratio_inst else training_progress
-
-
 
     def regularization_scaling(x, reg_scaling_exp):
         return x**reg_scaling_exp
     
-
     return rec_beta * reproduction_loss, \
-    neighbor_beta * regularization_scaling(training_progress, reg_scaling_exp) * neighbor_loss, \
+    neighbor_beta * regularization_scaling(training_progress, reg_scaling_exp_neighbor) * neighbor_loss, \
     spa_beta * spatial_loss, \
     kl_beta * kl_loss, \
     note_cls_beta * note_cls_loss, \
-    (1-regularization_scaling(training_progress, reg_scaling_exp)) * family_cls_beta * family_cls_loss
+    (1-regularization_scaling(training_progress, reg_scaling_exp_family)) * family_cls_beta * family_cls_loss, \
+    regularization_scaling(training_progress, reg_scaling_exp_instrument) * instrument_cls_beta * instrument_cls_loss
