@@ -37,64 +37,102 @@ import matplotlib.pyplot as plt
 LOG_TENSORBOARD = True
 
 @torch.no_grad()
-def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch):
+def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_epoch, note_remap, instrument_remap):
     model.eval()
     losses = []
-    cls_pred = []
-    cls_gt = []
+    note_cls_pred = []
+    note_cls_gt = []
+    family_cls_pred = []
+    family_cls_gt = []
+    instrument_cls_pred = []
+    instrument_cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
         gt_note_cls = data['metadata']['pitch'].to(device)
+        gt_inst = data['metadata']['instrument'].to(device)
 
-        rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = loss_fn(x = emb[:,:input_crop,:], 
+        rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss = loss_fn(x = emb[:,:input_crop,:], 
                                                             x_hat = emb_pred, 
                                                             mean = mean, 
                                                             var = var, 
                                                             note_cls = note_cls, 
                                                             gt_note_cls = gt_note_cls, 
                                                             family_cls = family_cls,
-                                                            gt_inst = data['metadata']['instrument'].to(device), 
                                                             gt_family = data['metadata']['family'].to(device), 
+                                                            instrument_cls = instrument_cls,
+                                                            gt_inst = gt_inst, 
                                                             current_epoch = current_epoch,
-                                                            )
+                                                            note_remap = note_remap,
+                                                            instrument_remap = instrument_remap)
 
-    
+        losses.append([rec_loss.item(), rep_loss.item(), spa_loss.item(), kl_loss.item(), note_cls_loss.item(), family_cls_loss.item(), instrument_cls_loss.item()])
+
+        # remap note and instrument classes
+        if note_remap is not None:
+            # Ensure note_remap is a tensor on the correct device
+            note_remap_tensor = torch.as_tensor(note_remap, device=gt_note_cls.device)
+            # For each value in gt_note_cls, find its index in note_remap
+            gt_note_cls = (gt_note_cls.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
         
+        if instrument_remap is not None:
+            # Ensure instrument_remap is a tensor on the correct device
+            instrument_remap_tensor = torch.as_tensor(instrument_remap, device=gt_inst.device)
+        else:
+            instrument_remap_tensor = torch.unique(gt_inst)
+            
+        # For each value in gt_inst, find its index in instrument_remap
+        gt_inst = (gt_inst.unsqueeze(-1) == instrument_remap_tensor).nonzero(as_tuple=False)[..., -1]
 
+        note_cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
+        note_cls_gt.extend(gt_note_cls.cpu().numpy())
 
-        losses.append([rec_loss.item(), rep_loss.item(), spa_loss.item(), kl_loss.item(), cla_loss.item(), inst_loss.item()])
+        family_cls_pred.extend(family_cls.argmax(dim=1).cpu().numpy())
+        family_cls_gt.extend(data['metadata']['family'].cpu().numpy())
 
-        cls_pred.extend(note_cls.argmax(dim=1).cpu().numpy())
-        cls_gt.extend(gt_note_cls.cpu().numpy())
-        
+        instrument_cls_pred.extend(instrument_cls.argmax(dim=1).cpu().numpy())
+        instrument_cls_gt.extend(gt_inst.cpu().numpy())
+
         if i >= max_num_batches: # data set can be very large
             break
 
-    b = np.array(cls_pred) == np.array(cls_gt)
-    acc01 = np.count_nonzero(b) / len(b)
+    note_acc01 = np.array(note_cls_pred) == np.array(note_cls_gt)
+    note_acc01 = np.count_nonzero(note_acc01) / len(note_acc01)
 
-    rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = np.array(losses).mean(axis=0)
-    return rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01
+    family_acc01 = np.array(family_cls_pred) == np.array(family_cls_gt)
+    family_acc01 = np.count_nonzero(family_acc01) / len(family_acc01)
+
+    instrument_acc01 = np.array(instrument_cls_pred) == np.array(instrument_cls_gt)
+    instrument_acc01 = np.count_nonzero(instrument_acc01) / len(instrument_acc01)
+
+    rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss = np.array(losses).mean(axis=0)
+    return rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss, note_acc01, family_acc01, instrument_acc01
 
 @torch.no_grad()
-def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None):
+def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoch=0, writer=None, instrument_remap=None):
     model.eval()
     embs = np.zeros((0,input_crop,128))
     embs_pred = np.zeros((0,input_crop,128))
     means = np.zeros((0,2))
     families = np.zeros((0))
+    instruments = np.zeros((0))
     for i, data in enumerate(dl):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls  = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
         families = np.concat((families, data['metadata']['family'][:num_examples].numpy()))
+        instruments = np.concat((instruments, data['metadata']['instrument'][:num_examples].numpy()))
         if len(embs) >= num_examples: # skip when ds gets too large
             break
 
-    
+    if instrument_remap is not None:
+        # Remap instruments to their indices in instrument_remap for coloring
+        instrument_remap_tensor = np.asarray(instrument_remap)
+        # For each value in instruments, find its index in instrument_remap
+        instruments = np.array([np.where(instrument_remap_tensor == inst)[0][0] for inst in instruments])
+
     # plot original embedding and decoded embedding
     fig1, axes1 = plt.subplots(1, 2, figsize=(10, 5), num=1)  # 1 row, 2 columns
     # orig embedding
@@ -107,7 +145,7 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
 
     # plot the latent as scatters
     fig2 = plt.figure(2)
-    plt.scatter(means[:,0], means[:,1], c=families)
+    plt.scatter(means[:,0], means[:,1], c=instruments)
     plt.xlim(-1, 1)
     plt.ylim(-1, 1)
     plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
@@ -127,7 +165,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     embs_decoded = []
     for i, data in enumerate(data_loader):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls = model.forward(emb)
+        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
 
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
         emb_pred = emb_pred.permute(0,2,1)
@@ -205,16 +243,22 @@ def main():
     
     print(f"Length of train dataloader: {len(train_dataloader)}")
     print(f"Length of valid dataloader: {len(valid_dataloader)}")
-    
+
+    train_instrument_remap = np.unique(sampler_train.chosen_instruments)
+    valid_instrument_remap = np.unique(sampler_valid.chosen_instruments)
+
+    print(f"Number of instruments in train dataset: {len(train_instrument_remap)}")
+    print(f"Number of instruments in valid dataset: {len(valid_instrument_remap)}")
+
     print(f"Creating the vae model with channels: {cfg.train.vae.channels}, linears: {cfg.train.vae.linears}, input_crop: {cfg.train.vae.input_crop}")
-    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=128) # TODO: Fix the problem with num_notes!
+    vae = ConditionConvVAE(cfg.train.vae.channels, cfg.train.vae.linears, cfg.train.vae.input_crop, device=device, dropout_ratio=cfg.train.vae.dropout_ratio, num_notes=len(cfg.train.pitch), num_instruments=len(train_instrument_remap))
 
     print(f"Creating optimizer with lr: {cfg.train.vae.lr}, wd: {cfg.train.vae.wd}, betas: {cfg.train.vae.betas}")
     optimizer = torch.optim.AdamW(vae.parameters(), lr=cfg.train.vae.lr, weight_decay=cfg.train.vae.wd, betas=cfg.train.vae.betas)
     print("Instantiating the loss functions.")
     
     calculate_vae_loss = instantiate(cfg.train.vae.calculate_vae_loss, _recursive_=True)
-    calculate_vae_loss = partial(calculate_vae_loss, device=device, rec_beta = cfg.train.vae.rec_beta, neighbor_beta = cfg.train.vae.neighbor_beta, spa_beta = cfg.train.vae.spa_beta, kl_beta = cfg.train.vae.kl_beta, note_cls_beta = cfg.train.vae.note_cls_beta, family_cls_beta = cfg.train.vae.family_cls_beta, reg_scaling_exp = cfg.train.vae.reg_scaling_exp)
+    calculate_vae_loss = partial(calculate_vae_loss, device=device, rec_beta = cfg.train.vae.rec_beta, neighbor_beta = cfg.train.vae.neighbor_beta, spa_beta = cfg.train.vae.spa_beta, kl_beta = cfg.train.vae.kl_beta, note_cls_beta = cfg.train.vae.note_cls_beta, family_cls_beta = cfg.train.vae.family_cls_beta, instrument_cls_beta = cfg.train.vae.instrument_cls_beta, reg_scaling_exp_neighbor = cfg.train.vae.reg_scaling_exp_neighbor, reg_scaling_exp_family = cfg.train.vae.reg_scaling_exp_family, reg_scaling_exp_instrument = cfg.train.vae.reg_scaling_exp_instrument, note_remap=cfg.train.pitch)
 
     encodec_model = None
     if cfg.train.vae.hear_interval > 0:
@@ -230,13 +274,24 @@ def main():
         remote_dir = Path("logs/tensorboard/vae")
         remote_dir = logs.construct_remote_dir(remote_dir)
         metrics = {'train/reconstruction_loss': None,
-                   'train/regularisation_loss': None,
-                   'train/classifier_loss': None, 
-                   'train/classifier_accuracy': None,
-                   'valid/reconstruction_loss': None,
-                   'valid/regularisation_loss': None,
-                   'valid/classifier_loss': None,
-                   'valid/classifier_accuracy': None}
+                  'train/repulsion_loss': None,
+                  'train/spatial_loss': None,
+                  'train/kl_loss': None,
+                  'train/note_classifier_loss': None,
+                  'train/note_classifier_accuracy': None,
+                  'train/family_classifier_loss': None,
+                  'train/family_classifier_accuracy': None,
+                  'train/instrument_classifier_loss': None,
+                  'train/instrument_classifier_accuracy': None,
+                  'valid/reconstruction_loss': None,
+                  'valid/repulsion_loss': None,
+                  'valid/spatial_loss': None,
+                  'valid/kl_loss': None,
+                  'valid/note_classifier_loss': None,
+                  'valid/note_classifier_accuracy': None,
+                  'valid/family_classifier_loss': None,
+                  'valid/family_classifier_accuracy': None,}
+                  # Instruments are different in train and valid dataset, so classifier metrics for validation make no sense
 
         writer = logs.CustomSummaryWriter(log_dir=tensorboard_path, params=cfg, metrics=metrics, sync_interval=cfg.train.vae.eval_interval, remote_dir=remote_dir)
 
@@ -254,21 +309,22 @@ def main():
             optimizer.zero_grad()
             
             emb = data['embeddings'].to(device)
-            emb_pred, mean, var, note_cls, one_hot, family_cls = vae.forward(emb)
-            
-            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:], 
+            emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = vae.forward(emb)
+
+            rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:],
                                                               x_hat = emb_pred, 
                                                               mean = mean, 
                                                               var = var, 
                                                               note_cls = note_cls, 
                                                               gt_note_cls = data['metadata']['pitch'].to(device), 
                                                               family_cls = family_cls,
-                                                              gt_inst = data['metadata']['instrument'].to(device), 
                                                               gt_family = data['metadata']['family'].to(device),
+                                                              instrument_cls = instrument_cls,
+                                                              gt_inst = data['metadata']['instrument'].to(device), 
                                                               current_epoch = epoch,
-                                                              )
-            
-            loss = rec_loss + rep_loss + spa_loss + kl_loss + cla_loss + inst_loss
+                                                              instrument_remap=train_instrument_remap)
+
+            loss = rec_loss + rep_loss + spa_loss + kl_loss + note_cls_loss + family_cls_loss + instrument_cls_loss
             loss.backward()
             optimizer.step()
 
@@ -287,44 +343,52 @@ def main():
         if (epoch % cfg.train.vae.eval_interval) == 0 and epoch > 0:
             # reconstruction error on validation dataset
             print()
-                        
-            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
-                                dl = train_dataloader, 
-                                device = device, 
-                                max_num_batches = 25, 
-                                loss_fn = calculate_vae_loss, 
-                                input_crop = cfg.train.vae.input_crop, 
-                                current_epoch=epoch)
-            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
+
+            rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss, note_acc01, family_acc01, instrument_acc01 = eval_model(model = vae,
+                                dl = train_dataloader,
+                                device = device,
+                                max_num_batches = 25,
+                                loss_fn = calculate_vae_loss,
+                                input_crop = cfg.train.vae.input_crop,
+                                current_epoch=epoch,
+                                note_remap=cfg.train.pitch,
+                                instrument_remap=train_instrument_remap)
+            print("TRAIN: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, KL Loss: %.6f, Pitch Classifier Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f, Family 0/1 Accuracy: %.6f, Instrument Classifier Loss: %.6f, Instrument 0/1 Accuracy: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, note_acc01, family_cls_loss, family_acc01, instrument_cls_loss, instrument_acc01))
             if writer is not None:
                 writer.add_scalar("train/reconstruction_loss", rec_loss, epoch)
                 writer.add_scalar("train/repulsion_loss", rep_loss, epoch)
                 writer.add_scalar("train/spatial_loss", spa_loss, epoch)
                 writer.add_scalar("train/kl_loss", kl_loss, epoch)
-                writer.add_scalar("train/classifier_loss", cla_loss, epoch)
-                writer.add_scalar("train/classifier_accuracy", acc01, epoch)
-                writer.add_scalar("train/instrument_loss", inst_loss, epoch)
+                writer.add_scalar("train/note_classifier_loss", note_cls_loss, epoch)
+                writer.add_scalar("train/note_classifier_accuracy", note_acc01, epoch)
+                writer.add_scalar("train/family_classifier_loss", family_cls_loss, epoch)
+                writer.add_scalar("train/family_classifier_accuracy", family_acc01, epoch)
+                writer.add_scalar("train/instrument_classifier_loss", instrument_cls_loss, epoch)
+                writer.add_scalar("train/instrument_classifier_accuracy", instrument_acc01, epoch)
 
-            rec_loss, rep_loss, spa_loss, kl_loss, cla_loss, inst_loss, acc01 = eval_model(model = vae, 
-                                dl = valid_dataloader, 
-                                device = device, 
-                                max_num_batches = 25, 
-                                loss_fn = calculate_vae_loss, 
-                                input_crop = cfg.train.vae.input_crop, 
-                                current_epoch=epoch)
-            print("VAL: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, Pitch Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, cla_loss, acc01, inst_loss))
+            rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss, note_acc01, family_acc01, instrument_acc01 = eval_model(model = vae,
+                                dl = valid_dataloader,
+                                device = device,
+                                max_num_batches = 25,
+                                loss_fn = calculate_vae_loss,
+                                input_crop = cfg.train.vae.input_crop,
+                                current_epoch=epoch,
+                                note_remap=cfg.train.pitch,
+                                instrument_remap=None)
+            print("VALID: Epoch %d: Reconstruction loss: %.6f, Repulsion Loss: %.6f, Spatial Loss: %.6f, KL Loss: %.6f, Pitch Classifier Loss: %.6f, Pitch 0/1 Accuracy: %.6f, Family Classifier Loss: %.6f, Family 0/1 Accuracy: %.6f" % (epoch, rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, note_acc01, family_cls_loss, family_acc01))
             if writer is not None:
                 writer.add_scalar("valid/reconstruction_loss", rec_loss, epoch)
                 writer.add_scalar("valid/repulsion_loss", rep_loss, epoch)
                 writer.add_scalar("valid/spatial_loss", spa_loss, epoch)
                 writer.add_scalar("valid/kl_loss", kl_loss, epoch)
-                writer.add_scalar("valid/classifier_loss", cla_loss, epoch)
-                writer.add_scalar("valid/classifier_accuracy", acc01, epoch)
-                writer.add_scalar("valid/instrument_loss", inst_loss, epoch)
+                writer.add_scalar("valid/note_classifier_loss", note_cls_loss, epoch)
+                writer.add_scalar("valid/note_classifier_accuracy", note_acc01, epoch)
+                writer.add_scalar("valid/family_classifier_loss", family_cls_loss, epoch)
+                writer.add_scalar("valid/family_classifier_accuracy", family_acc01, epoch)
 
         if (epoch % cfg.train.vae.visualize_interval) == 0 and epoch > 0:
-            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer)
-            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='valid', num_examples=500, epoch=epoch, writer=writer)
+            visu_model(vae, train_dataloader, device, cfg.train.vae.input_crop, name_prefix='train', num_examples=500, epoch=epoch, writer=writer, instrument_remap=train_instrument_remap)
+            visu_model(vae, valid_dataloader, device, cfg.train.vae.input_crop, name_prefix='valid', num_examples=500, epoch=epoch, writer=writer, instrument_remap=None)
 
         if cfg.train.vae.hear_interval > 0:
             if (epoch % cfg.train.vae.hear_interval) == 0 and epoch > 0:

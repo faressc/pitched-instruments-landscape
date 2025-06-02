@@ -16,20 +16,18 @@ input_crop: 150
 # vae with convolutional layers
 channels: [128, 256, 512, 1024, 1024, 512]
 linears: [4096, 2048, 1024, 512, 2]
-
-
-
+ 
 # loss function parameter
 rec_beta: 0.8 # reconstruction loss, comparing input audio embedding and generated embedding
-neighbor_beta: 0.8 # repulsion and attraction loss for maximising the distance of in-batch samples and minimising the distance of samples from the same instrument id
+neighbor_beta: 1. # repulsion and attraction loss for maximising the distance of in-batch samples and minimising the distance of samples from the same instrument id
 spa_beta: 0.1 # spatial loss for limiting samples to the unicircle area to be used as a user interface
-kl_beta: 0.0 # kl loss for the latent space
+kl_beta: 0.001 # kl loss for the latent space
 note_cls_beta: 0.12 # classifier for estimating the pitch from the encoder head
-family_cls_beta: 0.07 # instrument classification from 2d embedding (for globally arranging samples)
-reg_scaling_exp: 1.5 # scaling exponent for the repulsion loss (possible good values: 1.5, 2.0, 2.5, 3.0)
-
-
-
+family_cls_beta: 0.07 # family classification from 2d embedding (for globally arranging samples)
+instrument_cls_beta: 0.007 # instrument classification from 2d embedding (for globally arranging samples)
+reg_scaling_exp_neighbor: 0.5 # scaling exponent for the repulsion loss (possible good values: 0.5, 0.8, 1.0, 1.2, 1.5)
+reg_scaling_exp_family: 1.5 # scaling exponent for the family classification loss (possible good values: 1.5, 2.0, 2.5, 3.0)
+reg_scaling_exp_instrument: 0.8 # scaling exponent for the instrument classification loss (possible good values: 0.8, 1.0, 1.2, 1.5)
 
 calculate_vae_loss:
   _target_: vae.calculate_vae_loss
