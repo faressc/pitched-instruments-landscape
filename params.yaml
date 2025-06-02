@@ -21,7 +21,7 @@ train:
   db_path_valid: data/processed/valid
   deterministic: true
   device: auto
-  max_inst_per_family: 5
+  max_inst_per_family: 20
   num_workers: 0
   pitch:
   - 48
@@ -56,10 +56,10 @@ train:
     - 0.9
     - 0.95
     block_size: 300
-    condition_model_path: out/vae/checkpoints/vae_final_epoch_3000.torch
+    condition_model_path: out/vae/checkpoints/vae_final_epoch_10000.torch
     dropout: 0.1
     epochs: 5000
-    eval_interval: 100
+    eval_interval: 50
     feedforward_dimension: 4096
     hear_interval: 500
     input_dimension: 128
@@ -71,9 +71,9 @@ train:
     n_head: 8
     n_layer_decoder: 12
     n_layer_encoder: 8
-    num_batches_evaluation: 5
+    num_batches_evaluation: 20
     save_interval: 1000
-    visualize_interval: 500
+    visualize_interval: 50
     weight_decay: 0.05
   transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
   vae:
@@ -90,7 +90,7 @@ train:
       loss_fn:
         _target_: torch.nn.MSELoss
         reduction: sum
-      num_epochs: 5000
+      num_epochs: 10000
       weighted_reproduction: false
     channels:
     - 128
@@ -99,13 +99,13 @@ train:
     - 1024
     - 1024
     - 512
-    cla_beta: 0.12
     dropout_ratio: 0.1
-    epochs: 5000
+    epochs: 10000
     eval_interval: 50
+    family_cls_beta: 0.07
     hear_interval: 300
     input_crop: 150
-    inst_beta: 0.07
+    kl_beta: 0.0
     linears:
     - 4096
     - 2048
@@ -113,13 +113,14 @@ train:
     - 512
     - 2
     lr: 0.0003
+    neighbor_beta: 0.8
+    note_cls_beta: 0.12
     rec_beta: 0.8
     reg_scaling_exp: 1.5
-    rep_beta: 0.8
     save_interval: 1000
     spa_beta: 0.1
     visualize_interval: 50
     wd: 0.05
-  vae_path: out/vae/checkpoints/vae_epoch_3000.torch
+  vae_path: out/vae/checkpoints/vae_final_epoch_10000.torch
   velocity:
   - 100

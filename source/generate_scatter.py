@@ -37,7 +37,7 @@ batch_size = 32
 
 print(f"Creating the valid dataset and dataloader with db_path: {cfg.train.db_path_train}")
 train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
-sampler = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, max_inst_per_family=40, shuffle=False)
+sampler = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, velocity=cfg.train.velocity, max_inst_per_family=cfg.train.max_inst_per_family, shuffle=False)
 dl = DataLoader(train_dataset,
                 batch_size=batch_size,
                 sampler=sampler,
@@ -58,7 +58,7 @@ for i in range(128):
     pitch_timbres[i] = np.zeros((0,3))
 
 for s in tqdm.tqdm(dl):
-    _, timbre_embedding, _, _, pitch_classification, cls_head = vae.forward(s['embeddings'].to(device))
+    _, timbre_embedding, _, _, pitch_classification, family_cls = vae.forward(s['embeddings'].to(device))
     gt_pitch = s['metadata']['pitch'].cpu().detach().numpy()
     pitch_classification = pitch_classification.argmax(dim=1)
     pitch_classification = pitch_classification.cpu().detach().numpy()
