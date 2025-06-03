@@ -285,7 +285,7 @@ def main():
     
     # Benchmarking for performance optimization
     if "cuda" in str(device):
-        torch.backends.cudnn.benchmark = False # TODO: Does this work with deterministic algorithms?
+        torch.backends.cudnn.benchmark = True # TODO: Does this work with deterministic algorithms?
     # Make PyTorch operations deterministic for reproducibility
     if cfg.train.deterministic:
         torch.use_deterministic_algorithms(mode=True, warn_only=True)
