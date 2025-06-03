@@ -6,6 +6,9 @@
 
 # Description: This script runs an experiment with DVC within a temporary directory copy and pushes the results to the DVC and Git remote.
 
+# Deterministic experiment results when using cuBLAS
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
 # Increase the maximum number of open file descriptors for the current shell session for multiple workers in DataLoader
 ulimit -n 262144
 
