@@ -74,7 +74,7 @@ dvc pull out/transformer;
 
 # Run the experiment with passed parameters. Runs with the default parameters if none are passed.
 echo "Running experiment..." &&
-dvc exp run -s train_vae $EXP_PARAMS &&
+dvc exp run -s train_vae $EXP_PARAMS --force &&
 
 # # Train Transformer model
 
