@@ -233,6 +233,31 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
         ffmpeg.write_audio_file(decoded_int, f"out/vae/{name_prefix}_generated_{i}.wav", 24000)
         if writer is not None:
             writer.add_audio(f"{name_prefix}/generated_{i}", decoded, epoch, sample_rate=24000)
+        
+def set_random_seeds(random_seed: int) -> None:
+    if "random" in globals():
+        random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'random' package is not imported, skipping random seed.")
+
+    if "np" in globals():
+        np.random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'numpy' package is not imported, skipping numpy seed.")
+
+    if "torch" in globals():
+        torch.manual_seed(random_seed)  # type: ignore
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(random_seed)
+        if torch.backends.mps.is_available():
+            torch.mps.manual_seed(random_seed)
+    else:
+        print("The 'torch' package is not imported, skipping torch seed.")
+    if "scipy" in globals():
+        scipy.random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'scipy' package is not imported, skipping scipy seed.")
+
 
 def main():
     print("##### Starting Train Stage #####")
@@ -256,7 +281,8 @@ def main():
     device = config.prepare_device(cfg.train.device)
 
     # Set a random seed for reproducibility across typical libraries
-    config.set_random_seeds(cfg.train.random_seed)
+    set_random_seeds(cfg.train.random_seed)
+    
     # Benchmarking for performance optimization
     if "cuda" in str(device):
         torch.backends.cudnn.benchmark = False # TODO: Does this work with deterministic algorithms?
