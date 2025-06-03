@@ -260,14 +260,10 @@ def main():
             
             vae_output = condition_model.forward(emb)
             timbre_cond = vae_output[1].detach()
-                # timbre_cond += vae_output[2].detach()
+            # TODO: Applying the VAE variation to the timbre condition (is this logvar or not?)
+            # timbre_cond += vae_output[2].detach()
             pitch_cond = vae_output[4].detach()
 
-            # apply noise to condition vector for smoothing the output distribution
-            # timbre_cond += torch.randn_like(timbre_cond).to(device) * torch.exp(0.5*vae_output[2])
-            # pitch_cond += torch.randn_like(pitch_cond).to(device) * 0.05
-
-            # TODO: Try transformer with ground truth pitch
             # concatenating timbre and pitch condition for putting into encoder of transformer
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
