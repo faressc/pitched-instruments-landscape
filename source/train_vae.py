@@ -127,11 +127,54 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
         if len(embs) >= num_examples: # skip when ds gets too large
             break
 
+    # Create a mapping from instrument to family
+    unique_instruments = np.unique(instruments)
+    instrument_to_family = {}
+    for i, inst in enumerate(unique_instruments):
+        family_idx = families[instruments == inst][0]
+        instrument_to_family[inst] = family_idx
+
+    # Get unique families
+    unique_families = np.unique(list(instrument_to_family.values()))
+    family_to_color_base = {family: idx/len(unique_families) for idx, family in enumerate(unique_families)}
+    
+    # Create a color map that assigns similar colors to instruments in the same family
+    instrument_colors = []
     if instrument_remap is not None:
-        # Remap instruments to their indices in instrument_remap for coloring
+        # Remap instruments to appropriate indices
         instrument_remap_tensor = np.asarray(instrument_remap)
-        # For each value in instruments, find its index in instrument_remap
-        instruments = np.array([np.where(instrument_remap_tensor == inst)[0][0] for inst in instruments])
+        remapped_instruments = []
+        for inst in instruments:
+            idx = np.where(instrument_remap_tensor == inst)[0][0]
+            remapped_instruments.append(idx)
+            
+            # Get the family for this instrument
+            family = instrument_to_family[inst]
+            # Get the base color for this family
+            base_color = family_to_color_base[family]
+            
+            # Calculate a small offset for the instrument within its family
+            family_instruments = [i for i, fam in instrument_to_family.items() if fam == family]
+            offset = family_instruments.index(inst) / (len(family_instruments) + 1) * 0.1
+            
+            # Create a color with a slight variation from the family's base color
+            instrument_colors.append(base_color + offset)
+            
+        instruments = np.array(remapped_instruments)
+    else:
+        # If no remap is provided, just use instrument indices directly
+        for inst in instruments:
+            family = instrument_to_family[inst]
+            base_color = family_to_color_base[family]
+            
+            family_instruments = [i for i, fam in instrument_to_family.items() if fam == family]
+            offset = family_instruments.index(inst) / (len(family_instruments) + 1) * 0.1
+            
+            instrument_colors.append(base_color + offset)
+    
+    # Create colormap for the scatter plot
+    from matplotlib import colormaps
+    cmap = colormaps['hsv']  # Use HSV colormap for better differentiation
 
     # plot original embedding and decoded embedding
     fig1, axes1 = plt.subplots(1, 2, figsize=(10, 5), num=1)  # 1 row, 2 columns
@@ -144,11 +187,17 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     plt.savefig('out/vae/%s_embedding_comparison.png' % (name_prefix))
 
     # plot the latent as scatters
-    fig2 = plt.figure(2)
-    plt.scatter(means[:,0], means[:,1], c=instruments)
+    fig2 = plt.figure(2, figsize=(10, 8))
+    scatter = plt.scatter(means[:,0], means[:,1], c=instrument_colors, cmap=cmap)
     plt.xlim(-1, 1)
     plt.ylim(-1, 1)
-    plt.savefig('out/vae/%s_latent_visualization.png' % (name_prefix))
+    
+    # Add a colorbar to show the mapping from color to family
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Instrument Family')
+    
+    plt.title(f"Latent Space Visualization - {name_prefix}")
+    plt.savefig(f'out/vae/{name_prefix}_latent_visualization.png')
 
     if writer is not None:
         writer.add_figure(f"{name_prefix}/latent_visualization", fig2, epoch)
