@@ -44,8 +44,8 @@ stages:
       size: 8452
     - path: source/train_vae.py
       hash: md5
-      md5: 763cbf376f928108a861a881dbf03c31
-      size: 22414
+      md5: af5e38456e23d2a7d1a7e6cf308e80d2
+      size: 25524
     - path: source/vae.py
       hash: md5
       md5: 4aaa5b639db6c02a00d818541d2261fd
@@ -83,9 +83,9 @@ stages:
             rec_beta: 0.8
             neighbor_beta: 1.0
             spa_beta: 0.1
-            kl_beta: 0.001
+            kl_beta: 0.0039
             note_cls_beta: 0.12
-            family_cls_beta: 0.07
+            family_cls_beta: 0.0
             instrument_cls_beta: 0.007
             reg_scaling_exp_neighbor: 0.5
             reg_scaling_exp_family: 1.5
@@ -167,8 +167,8 @@ stages:
     outs:
     - path: out/vae/
       hash: md5
-      md5: 106eaccdbdf1df29fe1c8c5e619761a5.dir
-      size: 2921771129
+      md5: 5975fffe3d29a1f6b0ee4a264a87d2cb.dir
+      size: 2921891345
       nfiles: 25
   train_transformer:
     cmd: python -u source/train_transformer.py

@@ -44,9 +44,9 @@ train:
     rec_beta: 0.8
     neighbor_beta: 1.0
     spa_beta: 0.1
-    kl_beta: 0.001
+    kl_beta: 0.0039
     note_cls_beta: 0.12
-    family_cls_beta: 0.07
+    family_cls_beta: 0.0
     instrument_cls_beta: 0.007
     reg_scaling_exp_neighbor: 0.5
     reg_scaling_exp_family: 1.5
