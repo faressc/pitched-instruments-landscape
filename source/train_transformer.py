@@ -223,9 +223,9 @@ def main():
 
     print("Instantiating the loss function")
     loss_fn = instantiate(cfg.train.transformer.loss_fn)
-    
-    print(f"Loading the condition model from path: {cfg.train.transformer.condition_model_path}")
-    condition_model = torch.load(cfg.train.transformer.condition_model_path, map_location=device, weights_only=False)
+
+    print(f"Loading the condition model from path: {cfg.train.vae_path}")
+    condition_model = torch.load(cfg.train.vae_path, map_location=device, weights_only=False)
     condition_model.device = device
     condition_model.eval()
 

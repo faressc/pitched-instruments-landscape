@@ -19,8 +19,6 @@ n_layer_decoder: 12
 n_head: 8
 dropout: 0.1
 
-condition_model_path: out/vae/checkpoints/vae_final_epoch_10000.torch
-
 loss_fn:
   _target_: torch.nn.MSELoss
   reduction: mean
