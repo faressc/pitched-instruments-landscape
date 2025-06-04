@@ -15,7 +15,7 @@ preprocess:
   batch_size: 8
 train:
   vae:
-    epochs: 10000
+    epochs: 100
     batch_size: 256
     lr: 0.0003
     wd: 0.05
@@ -54,7 +54,7 @@ train:
     calculate_vae_loss:
       _target_: vae.calculate_vae_loss
       _partial_: true
-      num_epochs: 10000
+      num_epochs: 100
       weighted_reproduction: false
       loss_fn:
         _target_: torch.nn.MSELoss
@@ -64,7 +64,7 @@ train:
       batch_size: 256
   transformer:
     epochs: 5000
-    batch_size: 96
+    batch_size: 64
     learning_rate: 0.0001
     weight_decay: 0.05
     betas:
