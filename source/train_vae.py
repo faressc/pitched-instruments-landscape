@@ -48,14 +48,14 @@ def eval_model(model, dl, device, max_num_batches, loss_fn, input_crop, current_
     instrument_cls_gt = []
     for i, data in enumerate(dl):
         emb = data['embeddings'].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
+        emb_pred, mean, logvar, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
         gt_note_cls = data['metadata']['pitch'].to(device)
         gt_inst = data['metadata']['instrument'].to(device)
 
         rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss = loss_fn(x = emb[:,:input_crop,:], 
                                                             x_hat = emb_pred, 
                                                             mean = mean, 
-                                                            var = var, 
+                                                            logvar = logvar, 
                                                             note_cls = note_cls, 
                                                             gt_note_cls = gt_note_cls, 
                                                             family_cls = family_cls,
@@ -118,7 +118,7 @@ def visu_model(model, dl, device, input_crop, num_examples, name_prefix='', epoc
     instruments = np.zeros((0))
     for i, data in enumerate(dl):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
+        emb_pred, mean, logvar, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
         embs = np.vstack((embs,emb[:,:input_crop,:].cpu().detach().numpy()))
         embs_pred = np.vstack((embs_pred,emb_pred.cpu().detach().numpy()))
         means = np.vstack((means, mean.cpu().detach().numpy()))
@@ -214,7 +214,7 @@ def hear_model(model, encodec_model, data_loader, device, input_crop, num_exampl
     embs_decoded = []
     for i, data in enumerate(data_loader):
         emb = data['embeddings'][:num_examples].to(device)
-        emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
+        emb_pred, mean, logvar, note_cls, one_hot, family_cls, instrument_cls = model.forward(emb)
 
         emb_pred = MetaAudioDataset.denormalize_embedding(emb_pred)
         emb_pred = emb_pred.permute(0,2,1)
@@ -260,7 +260,10 @@ def set_random_seeds(random_seed: int) -> None:
 
 
 def main():
-    print("##### Starting Train Stage #####")
+    print("##### Starting VAE Train Stage #####")
+
+    print(f"DVC Experiment Name: {os.getenv('DVC_EXP_NAME')}")
+
     os.makedirs("out/vae/checkpoints", exist_ok=True)
     
     # Load the parameters from the dictionary into variables
@@ -384,12 +387,12 @@ def main():
             optimizer.zero_grad()
             
             emb = data['embeddings'].to(device)
-            emb_pred, mean, var, note_cls, one_hot, family_cls, instrument_cls = vae.forward(emb)
+            emb_pred, mean, logvar, note_cls, one_hot, family_cls, instrument_cls = vae.forward(emb)
 
             rec_loss, rep_loss, spa_loss, kl_loss, note_cls_loss, family_cls_loss, instrument_cls_loss = calculate_vae_loss(x = emb[:,:cfg.train.vae.input_crop,:],
                                                               x_hat = emb_pred, 
                                                               mean = mean, 
-                                                              var = var, 
+                                                              logvar = logvar, 
                                                               note_cls = note_cls, 
                                                               gt_note_cls = data['metadata']['pitch'].to(device), 
                                                               family_cls = family_cls,
@@ -478,7 +481,7 @@ def main():
             writer.step()
             
     print("Training completed. Saving the model.")
-    torch.save(vae, 'out/vae/checkpoints/vae_final_epoch_%d.torch' % (epochs))
+    torch.save(vae, f'out/vae/checkpoints/vae_final_{os.getenv("DVC_EXP_NAME")}_epoch_{epochs}.torch')
     if writer is not None:
         writer.close()
     

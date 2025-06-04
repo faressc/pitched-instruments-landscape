@@ -143,7 +143,10 @@ def set_random_seeds(random_seed: int) -> None:
 
 
 def main():
-    print("##### Starting Train Stage #####")
+    print("##### Starting Transformer Train Stage #####")
+
+    print(f"DVC Experiment Name: {os.getenv('DVC_EXP_NAME')}")
+
     os.makedirs("out/transformer/checkpoints", exist_ok=True)
 
     cfg = OmegaConf.load("params.yaml")

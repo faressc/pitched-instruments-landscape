@@ -5,8 +5,6 @@ from torch.nn import functional as F
 
 import math
 
-
-
 class ConditionConvVAE(nn.Module):
     def __init__(self, channels, linears, input_crop, device, kernel_size=5, dilation=1, padding=None, stride=2, output_padding=1, dropout_ratio=0.2, num_notes=128, num_instruments=1006, num_families=11):
         super(ConditionConvVAE, self).__init__()
@@ -57,7 +55,7 @@ class ConditionConvVAE(nn.Module):
 
         # fed by regression head
         self.mean = nn.Linear(self.head_size, linears[-1])
-        self.var = nn.Linear(self.head_size, linears[-1])
+        self.logvar = nn.Linear(self.head_size, linears[-1])
         
         # fed by classification head
         self.note_cls = nn.Linear(self.head_size, num_notes)
@@ -127,7 +125,7 @@ class ConditionConvVAE(nn.Module):
 
     def forward(self, input, encoder_only=False):
         input = input.to(self.device)
-        mean, logvar, note_cls, family_cls, instrument_cls = self.encode(input)  # Assume var is actually logvar
+        mean, logvar, note_cls, family_cls, instrument_cls = self.encode(input)  # Assume logvar is actually logvar
 
         epsilon = torch.randn_like(logvar).to(self.device)  # Sampling epsilon
         std = torch.exp(0.5 * logvar)  # Convert log variance to standard deviation
@@ -180,7 +178,7 @@ class ConditionConvVAE(nn.Module):
         x_cla = self.relu(x_cla)
 
         mean = self.mean(x_reg)
-        var = self.var(x_reg)
+        logvar = self.logvar(x_reg)
         
         note_cls = self.note_cls(x_cla)
         
@@ -206,7 +204,7 @@ class ConditionConvVAE(nn.Module):
 
         instrument_cls = getattr(self, 'instrument_cls_head_{}'.format(len(self.instrument_cls_head_linears)-2))(instrument_cls)
 
-        return mean, var, note_cls, family_cls, instrument_cls
+        return mean, logvar, note_cls, family_cls, instrument_cls
 
     def decode(self, x):
         x = x.to(self.device)
@@ -248,7 +246,7 @@ class ConditionConvVAE(nn.Module):
                     nn.init.constant_(layer.bias, 0)  # Initialize biases to zero or another suitable value
 
 
-def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, gt_family, instrument_cls, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, neighbor_beta, spa_beta, kl_beta, note_cls_beta, family_cls_beta, instrument_cls_beta, reg_scaling_exp_neighbor, reg_scaling_exp_family, reg_scaling_exp_instrument, note_remap, instrument_remap):
+def calculate_vae_loss(x, x_hat, mean, logvar, note_cls, gt_note_cls, family_cls, gt_family, instrument_cls, gt_inst, current_epoch, num_epochs, weighted_reproduction, loss_fn, cls_loss_fn, batch_size, device, rec_beta, neighbor_beta, spa_beta, kl_beta, note_cls_beta, family_cls_beta, instrument_cls_beta, reg_scaling_exp_neighbor, reg_scaling_exp_family, reg_scaling_exp_instrument, note_remap, instrument_remap):
 
     b, t, f = x.shape
     
@@ -310,7 +308,7 @@ def calculate_vae_loss(x, x_hat, mean, var, note_cls, gt_note_cls, family_cls, g
     neighbor_loss = attractive_loss + repulsive_loss
 
     # KL divergence loss
-    kl_loss = -0.5 * torch.sum(1 + var - mean.pow(2) - var.exp()) / batch_size
+    kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp()) / batch_size
 
     # # spatial regularization loss
     l_orig = torch.linalg.vector_norm(mean,ord=2,dim=1)
