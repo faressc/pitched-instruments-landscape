@@ -321,7 +321,7 @@ def main():
             writer.step()
             
     print("Training completed. Saving the model.")
-    torch.save(model, 'out/transformer/checkpoints/transformer_final_epoch_%d.torch' % (epochs))
+    torch.save(model, f'out/transformer/checkpoints/transformer_final_{os.getenv("DVC_EXP_NAME")}_epoch_{epochs}.torch')
     if writer is not None:
         writer.close()
 
