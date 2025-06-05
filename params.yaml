@@ -64,7 +64,7 @@ train:
       batch_size: 256
   transformer:
     epochs: 5000
-    batch_size: 96
+    batch_size: 64
     learning_rate: 0.0001
     weight_decay: 0.05
     betas:
@@ -91,7 +91,7 @@ train:
   db_path_valid: data/processed/valid
   db_path_test: data/processed/test
   random_seed: 42
-  num_workers: 0
+  num_workers: 14
   pitch:
   - 48
   - 49
@@ -118,7 +118,7 @@ train:
   - 70
   - 71
   - 72
-  max_inst_per_family: 10
+  max_inst_per_family: 5
   velocity:
   - 100
   device: auto
