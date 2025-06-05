@@ -263,7 +263,7 @@ def main():
             
             vae_output = condition_model.forward(emb)
             timbre_cond = vae_output[1].detach()
-            # TODO: Applying the VAE variation to the timbre condition (is this logvar or not?)
+            # Since vae_output[2] is the log variance, we need to exponentiate it to get the standard deviation
             std = torch.exp(0.5 * vae_output[2].detach()) * cfg.train.transformer.std_multiplier
             timbre_cond += torch.randn_like(timbre_cond) * std
             pitch_cond = vae_output[4].detach()
