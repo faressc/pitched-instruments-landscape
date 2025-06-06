@@ -68,13 +68,13 @@ if __name__ == "__main__":
     transformer = torch.load(cfg.train.transformer_path, weights_only=False).to(device)
     transformer.eval()
 
-    pitches = cfg.train.pitch
+    note_remap_tensor = torch.as_tensor(cfg.train.pitch, device=device)
 
     sample_resolution = 5
     margin = (2.0/sample_resolution) / 2.
     sample_points = np.linspace(-1+margin,1-margin,sample_resolution)
 
-    for pt in tqdm.tqdm(range(min(pitches), max(pitches))):
+    for pt in tqdm.tqdm(range(min(note_remap_tensor), max(note_remap_tensor) + 1)):
         for xi, xx in enumerate(sample_points):
             for yi, yy in enumerate(sample_points):
                 current_filename = os.path.join(out_dir, '%03d_%03d_%03d.wav' % (pt, xi, yi))
@@ -82,8 +82,9 @@ if __name__ == "__main__":
                 timbre_cond = torch.zeros((1, 2))
                 timbre_cond[0,0] = xx
                 timbre_cond[0,1] = yy
-                pitch_cond = torch.zeros((1, 128)) # TODO: This should be len(pitches), fix in transformer to use note remapping
-                pitch_cond[0, pt] = 1.0
+                pitch_cond = torch.zeros((1, len(note_remap_tensor)))
+                pitch_index = (note_remap_tensor == pt).nonzero(as_tuple=True)[0].item()
+                pitch_cond[0, pitch_index] = 1.0
                 combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1).to(device)
 
                 generated = transformer.generate(300, combined_cond)
