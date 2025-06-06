@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 LOG_TENSORBOARD = True
 
 @torch.no_grad()
-def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
+def eval_model(model, cond_model, dl, device, num_batches, loss_fn, note_remap_tensor):
     model.eval()
     losses = []
     for b, data in enumerate(dl):
@@ -34,7 +34,9 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
 
         vae_output = cond_model.forward(emb)
         timbre_cond = vae_output[1].detach()
-        pitch_cond = vae_output[4].detach()
+        pitch_cond = data['metadata']['pitch'].to(device)
+        pitch_cond = (pitch_cond.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
+        pitch_cond = torch.nn.functional.one_hot(pitch_cond, num_classes=len(note_remap_tensor)).float()
 
         # concatenating timbre and pitch condition for putting into encoder of transformer
         combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
@@ -60,13 +62,18 @@ def eval_model(model, cond_model, dl, device, num_batches, loss_fn):
     return loss, gen_loss
 
 @torch.no_grad()
-def visu_model(model, cond_model, dl, device, name_prefix="", epoch=0, writer=None):
+def visu_model(model, cond_model, dl, device, name_prefix="", epoch=0, writer=None, note_remap_tensor=None):
     model.eval()
     for i, data in enumerate(dl):
         emb = data["embeddings"].to(device)
         vae_output = cond_model.forward(emb)
         timbre_cond = vae_output[1].detach()
         pitch_cond = vae_output[4].detach()
+        if note_remap_tensor is not None:
+            pitch_cond = data['metadata']['pitch'].to(device)
+            pitch_cond = (pitch_cond.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
+            pitch_cond = torch.nn.functional.one_hot(pitch_cond, num_classes=len(note_remap_tensor)).float()
+        
         combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
         generated = model.generate(emb.shape[1], combined_cond)
@@ -88,7 +95,7 @@ def visu_model(model, cond_model, dl, device, name_prefix="", epoch=0, writer=No
         break
 
 @torch.no_grad()
-def hear_model(model, cond_model, encodec_model, dl, device, num_examples, name_prefix="", epoch=0, writer=None):
+def hear_model(model, cond_model, encodec_model, dl, device, num_examples, name_prefix="", epoch=0, writer=None, note_remap_tensor=None):
     model.eval()
     embs_decoded = []
     for i, data in enumerate(dl):
@@ -96,6 +103,10 @@ def hear_model(model, cond_model, encodec_model, dl, device, num_examples, name_
         vae_output = cond_model.forward(emb)
         timbre_cond = vae_output[1].detach()
         pitch_cond = vae_output[4].detach()
+        if note_remap_tensor is not None:
+            pitch_cond = data['metadata']['pitch'][:num_examples].to(device)
+            pitch_cond = (pitch_cond.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
+            pitch_cond = torch.nn.functional.one_hot(pitch_cond, num_classes=len(note_remap_tensor)).float()
         combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
         generated = model.generate(emb.shape[1], combined_cond)
@@ -204,6 +215,8 @@ def main():
     print(f"Length of train dataloader: {len(train_dataloader)}")
     print(f"Length of valid dataloader: {len(valid_dataloader)}")
 
+    note_remap_tensor = torch.as_tensor(cfg.train.pitch, device=device)
+
     transformer_config = dict(
         block_size = cfg.train.transformer.block_size,
         input_dimension = cfg.train.transformer.input_dimension,
@@ -267,8 +280,10 @@ def main():
             # Since vae_output[2] is the log variance, we need to exponentiate it to get the standard deviation
             std = torch.exp(0.5 * vae_output[2].detach()) * cfg.train.transformer.std_multiplier
             timbre_cond += torch.randn_like(timbre_cond) * std
-            pitch_cond = vae_output[4].detach()
-
+            pitch_cond = data['metadata']['pitch'].to(device)
+            pitch_cond = (pitch_cond.unsqueeze(-1) == note_remap_tensor).nonzero(as_tuple=False)[..., -1]
+            pitch_cond = torch.nn.functional.one_hot(pitch_cond, num_classes=len(note_remap_tensor)).float()
+            
             # concatenating timbre and pitch condition for putting into encoder of transformer
             combined_cond = torch.cat((timbre_cond, pitch_cond), dim=1)
 
@@ -292,13 +307,13 @@ def main():
         model.eval()
         if (epoch % cfg.train.transformer.eval_interval) == 0 and epoch > 0:
             print()
-            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
+            losses = eval_model(model, condition_model, train_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn, note_remap_tensor=note_remap_tensor)
             print("TRAIN: Epoch %d: Train loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
             if writer is not None:
                 writer.add_scalar("train/loss", losses[0], epoch)
                 writer.add_scalar("train/gen_loss", losses[1], epoch)
 
-            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn)
+            losses = eval_model(model, condition_model, valid_dataloader, device=device, num_batches=cfg.train.transformer.num_batches_evaluation, loss_fn=loss_fn, note_remap_tensor=note_remap_tensor)
             print("VALID: Epoch %d: Val loss: %.6f, Generation Loss: %.6f" % (epoch, losses[0], losses[1]))
             if writer is not None:
                 writer.add_scalar("valid/loss", losses[0], epoch)
@@ -306,14 +321,14 @@ def main():
 
         if (epoch % cfg.train.transformer.visualize_interval) == 0 and epoch > 0:
             print("Visualizing the model")
-            visu_model(model, condition_model, train_dataloader, device=device, name_prefix="train", epoch=epoch, writer=writer)
-            visu_model(model, condition_model, valid_dataloader, device=device, name_prefix="valid", epoch=epoch, writer=writer)
+            visu_model(model, condition_model, train_dataloader, device=device, name_prefix="train", epoch=epoch, writer=writer, note_remap_tensor=note_remap_tensor)
+            visu_model(model, condition_model, valid_dataloader, device=device, name_prefix="valid", epoch=epoch, writer=writer, note_remap_tensor=note_remap_tensor)
 
         if cfg.train.transformer.hear_interval > 0:
             if (epoch % cfg.train.transformer.hear_interval) == 0 and epoch > 0:
                 print("Hearing the model")
-                hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch, writer=writer)
-                hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch, writer=writer)
+                hear_model(model, condition_model, encodec_model, train_dataloader, device=device, num_examples=2, name_prefix="train", epoch=epoch, writer=writer, note_remap_tensor=note_remap_tensor)
+                hear_model(model, condition_model, encodec_model, valid_dataloader, device=device, num_examples=2, name_prefix="valid", epoch=epoch, writer=writer, note_remap_tensor=note_remap_tensor)
 
         if (epoch % cfg.train.transformer.save_interval) == 0 and epoch > 0:
             print("Saving model at epoch %d" % (epoch))

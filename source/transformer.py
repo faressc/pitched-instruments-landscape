@@ -54,7 +54,8 @@ class GesamTransformer(nn.Module):
         xenc_timbre = xenc[:,:2]
         xenc_timbre = self.input_projection_encoder_timbre(xenc_timbre.unsqueeze(-1))
         xenc_pitch = xenc[:,2:]
-        xenc_pitch = self.input_projection_encoder_pos(torch.argmax(xenc_pitch, dim=1)).unsqueeze(1)
+        xenc_pitch_argmax = xenc_pitch.argmax(dim=1) # Get the index of the max value in each row
+        xenc_pitch = self.input_projection_encoder_pos(xenc_pitch_argmax).unsqueeze(1)
         x_concat = torch.concat((xenc_timbre, xenc_pitch), dim=1)
         
         mask = self.get_tgt_mask(xdec.shape[1])
