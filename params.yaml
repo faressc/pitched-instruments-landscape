@@ -44,7 +44,7 @@ train:
     rec_beta: 0.8
     neighbor_beta: 1.0
     spa_beta: 0.1
-    kl_beta: 0.0039
+    kl_beta: 0.006
     note_cls_beta: 0.12
     family_cls_beta: 0.07
     instrument_cls_beta: 0.007
@@ -83,7 +83,7 @@ train:
     n_layer_decoder: 12
     n_head: 8
     dropout: 0.1
-    condition_model_path: out/vae/checkpoints/vae_final_epoch_10000.torch
+    std_multiplier: 0.0
     loss_fn:
       _target_: torch.nn.MSELoss
       reduction: mean
@@ -123,7 +123,7 @@ train:
   - 100
   device: auto
   deterministic: true
-  vae_path: out/vae/checkpoints/vae_final_epoch_10000.torch
+  vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
   transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
