@@ -184,7 +184,9 @@ def main():
         torch.backends.cudnn.benchmark = False # Disable cudnn benchmark for reproducibility, can lead to different algo choices
     # Make PyTorch operations deterministic for reproducibility
     if cfg.train.deterministic:
-        torch.use_deterministic_algorithms(mode=True, warn_only=True)
+        # Why does it not work with warn_only=True for the Memory Efficient attention defaults to a non-deterministic algorithm?
+        torch.use_deterministic_algorithms(mode=True, warn_only=False)
+
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
