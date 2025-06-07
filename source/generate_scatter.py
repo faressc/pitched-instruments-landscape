@@ -198,7 +198,7 @@ if __name__ == "__main__":
     cmap = plt.get_cmap('hsv')
     family_colors = [cmap(family_to_color_base[family]) for family in unique_families]
 
-    fig, ax = plt.subplots(figsize=(10, 1))
+    fig, ax = plt.subplots(figsize=(10, 0.5))
 
     # Create a ScalarMappable for the colorbar
     sm = plt.cm.ScalarMappable(cmap=cmap)
@@ -225,10 +225,10 @@ if __name__ == "__main__":
     cbar.ax.set_xticklabels([], minor=False)  # Hide the major tick labels
 
     # Make minor ticks (our labels) more prominent
-    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=9)
+    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=12)
 
     # Add some padding around the figure to ensure labels aren't cut off
-    plt.tight_layout(pad=1.5)  
+    plt.tight_layout(pad=0.)  
 
     plt.savefig(os.path.join(out_dir, 'legend.svg'))
     plt.close()
