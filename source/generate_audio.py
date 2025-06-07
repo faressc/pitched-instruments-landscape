@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     note_remap_tensor = torch.as_tensor(cfg.train.pitch, device=device)
 
-    sample_resolution = 5
+    sample_resolution = 10
     margin = (2.0/sample_resolution) / 2.
     sample_points = np.linspace(-1+margin,1-margin,sample_resolution)
 
