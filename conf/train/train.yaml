@@ -14,4 +14,4 @@ defaults:
   - transformer: transformer
 
 vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
