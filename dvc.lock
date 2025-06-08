@@ -262,7 +262,7 @@ stages:
             n_layer_decoder: 12
             n_head: 8
             dropout: 0.1
-            std_multiplier: 0.0
+            std_multiplier: 0.05
             loss_fn:
               _target_: torch.nn.MSELoss
               reduction: mean
@@ -270,7 +270,7 @@ stages:
           db_path_valid: data/processed/valid
           db_path_test: data/processed/test
           random_seed: 42
-          num_workers: 0
+          num_workers: 30
           pitch:
           - 48
           - 49
@@ -303,10 +303,10 @@ stages:
           device: auto
           deterministic: true
           vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-          transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+          transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
     outs:
     - path: out/transformer/
       hash: md5
-      md5: e03e57a00ef37cc064029a660c087af1.dir
-      size: 2833180916
+      md5: b0b2b4a00d5fd05eb09d987bfc23235d.dir
+      size: 2833159068
       nfiles: 12
