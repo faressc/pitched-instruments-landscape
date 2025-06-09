@@ -300,13 +300,13 @@ stages:
           max_inst_per_family: 10
           velocity:
           - 100
-          device: auto
+          device: cuda:0
           deterministic: true
           vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-          transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+          transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
     outs:
     - path: out/transformer/
       hash: md5
-      md5: e03e57a00ef37cc064029a660c087af1.dir
-      size: 2833180916
+      md5: 191d1faaa6d1814d5820bd076b5d593c.dir
+      size: 2833172197
       nfiles: 12
