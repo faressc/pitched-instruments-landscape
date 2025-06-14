@@ -186,6 +186,7 @@ def main():
     if cfg.train.deterministic:
         # Why does it not work with warn_only=True for the Memory Efficient attention defaults to a non-deterministic algorithm?
         torch.use_deterministic_algorithms(mode=True, warn_only=False)
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # Set CUBLAS workspace config for reproducibility
 
     print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
 
