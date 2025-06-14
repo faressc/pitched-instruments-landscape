@@ -78,12 +78,12 @@ train:
     block_size: 300
     input_dimension: 128
     internal_dimension: 512
-    feedforward_dimension: 4096
+    feedforward_dimension: 8192
     n_layer_encoder: 8
     n_layer_decoder: 12
     n_head: 8
     dropout: 0.1
-    std_multiplier: 0.0
+    std_multiplier: 0.0001
     loss_fn:
       _target_: torch.nn.MSELoss
       reduction: mean
@@ -121,9 +121,9 @@ train:
   max_inst_per_family: 10
   velocity:
   - 100
-  device: auto
+  device: cuda:2
   deterministic: true
   vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-  transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+  transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
