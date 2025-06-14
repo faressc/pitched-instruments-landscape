@@ -65,7 +65,8 @@ if __name__ == "__main__":
 
     encodec_model = EncodecModel.from_pretrained(cfg.preprocess.model_name).to(device)
 
-    transformer = torch.load(cfg.train.transformer_path, weights_only=False).to(device)
+    transformer = torch.load(cfg.train.transformer_path, weights_only=False, map_location=device)
+    transformer.device = device
     transformer.eval()
 
     note_remap_tensor = torch.as_tensor(cfg.train.pitch, device=device)
