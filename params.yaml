@@ -83,7 +83,7 @@ train:
     n_layer_decoder: 12
     n_head: 8
     dropout: 0.1
-    std_multiplier: 0.0
+    std_multiplier: 0.005
     loss_fn:
       _target_: torch.nn.MSELoss
       reduction: mean
@@ -124,6 +124,6 @@ train:
   device: auto
   deterministic: true
   vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-  transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+  transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
