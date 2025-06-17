@@ -240,7 +240,7 @@ if __name__ == "__main__":
     cbar.ax.set_xticklabels([], minor=False)  # Hide the major tick labels
 
     # Make minor ticks (our labels) more prominent
-    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=14)
+    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=16)
 
     # Save the figure with tight layout
     plt.tight_layout(pad=0)  
