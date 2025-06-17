@@ -205,6 +205,7 @@ if __name__ == "__main__":
     ax.set_aspect('equal', adjustable='box')
     ax.tick_params(axis='both', which='major', labelsize=14)
     plt.savefig(os.path.join(out_dir,'all_pitches.svg'))
+    plt.savefig(os.path.join(out_dir,'all_pitches.png'))
     plt.close()
 
     # Plot only the colorbar (legend) for instrument families
@@ -244,10 +245,12 @@ if __name__ == "__main__":
     # Save the figure with tight layout
     plt.tight_layout(pad=0)  
     plt.savefig(os.path.join(out_dir, 'legend.svg'))
+    plt.savefig(os.path.join(out_dir, 'legend.png'))
 
     # Add some padding around the figure to ensure labels aren't cut off
     fig.set_size_inches(10, 0.8)
     plt.tight_layout(pad=0.5)  
     plt.savefig(os.path.join(out_dir, 'legend_padded.svg'))
+    plt.savefig(os.path.join(out_dir, 'legend_padded.png'))
 
     plt.close()
