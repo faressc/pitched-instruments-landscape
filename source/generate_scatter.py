@@ -194,11 +194,24 @@ if __name__ == "__main__":
         plt.savefig(os.path.join(out_dir,'%03d.svg' % (pt,)))
         plt.close()
 
+    # Generate a plot with all the pitches combined
+    fig, ax = plt.subplots(1, figsize=(6, 6))
+    all_values = np.vstack(list(pitch_timbres.values()))
+    scatter = plt.scatter(all_values[:,0], all_values[:,1], c=all_values[:,2], cmap=cmap, edgecolor='k', s=50)
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    ax.set_xticks(np.arange(-1, 1.5, 0.5))  # Include endpoints
+    ax.set_yticks(np.arange(-1, 1.5, 0.5))
+    ax.set_aspect('equal', adjustable='box')
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    plt.savefig(os.path.join(out_dir,'all_pitches.svg'))
+    plt.close()
+
     # Plot only the colorbar (legend) for instrument families
     cmap = plt.get_cmap('hsv')
     family_colors = [cmap(family_to_color_base[family]) for family in unique_families]
 
-    fig, ax = plt.subplots(figsize=(10, 0.5))
+    fig, ax = plt.subplots(figsize=(10, 0.6))
 
     # Create a ScalarMappable for the colorbar
     sm = plt.cm.ScalarMappable(cmap=cmap)
@@ -218,6 +231,7 @@ if __name__ == "__main__":
     # Set the tick labels at the calculated midpoint positions
     tick_labels = [MetaAudioFile.Metadata.InstrumentFamily.Name(int(family)) for family in unique_families]
     tick_labels = [label.split('_')[0].lower().capitalize() for label in tick_labels]
+    tick_labels = [label.replace('Keyboard', 'Key') for label in tick_labels]
 
     # Use the set_ticks and set_ticklabels separately to position labels between ticks
     cbar.ax.set_xticks(label_locs, minor=True)
@@ -225,10 +239,15 @@ if __name__ == "__main__":
     cbar.ax.set_xticklabels([], minor=False)  # Hide the major tick labels
 
     # Make minor ticks (our labels) more prominent
-    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=12)
+    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=16)
+
+    # Save the figure with tight layout
+    plt.tight_layout(pad=0)  
+    plt.savefig(os.path.join(out_dir, 'legend.svg'))
 
     # Add some padding around the figure to ensure labels aren't cut off
-    plt.tight_layout(pad=0.)  
+    fig.set_size_inches(10, 0.8)
+    plt.tight_layout(pad=0.5)  
+    plt.savefig(os.path.join(out_dir, 'legend_padded.svg'))
 
-    plt.savefig(os.path.join(out_dir, 'legend.svg'))
     plt.close()
