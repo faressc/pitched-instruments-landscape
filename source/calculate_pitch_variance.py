@@ -25,10 +25,34 @@ import shutil
 matplotlib.use('Agg')  # Set the backend to Agg (non-interactive)
 import matplotlib.pyplot as plt
 
+def set_random_seeds(random_seed: int) -> None:
+    if "random" in globals():
+        random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'random' package is not imported, skipping random seed.")
+
+    if "np" in globals():
+        np.random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'numpy' package is not imported, skipping numpy seed.")
+
+    if "torch" in globals():
+        torch.manual_seed(random_seed)  # type: ignore
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(random_seed)
+        if torch.backends.mps.is_available():
+            torch.mps.manual_seed(random_seed)
+    else:
+        print("The 'torch' package is not imported, skipping torch seed.")
+    if "scipy" in globals():
+        scipy.random.seed(random_seed)  # type: ignore
+    else:
+        print("The 'scipy' package is not imported, skipping scipy seed.")
+
 def main():
     print("##### Starting Pitch variance Evaluation Stage #####")
 
-    exp_name = "surgy-trey"
+    exp_name = "all_losses"
     log_path = os.path.join("out/ablation_study", exp_name)
     if os.path.exists(log_path):
         shutil.rmtree(log_path)
@@ -55,14 +79,7 @@ def main():
     device = config.prepare_device(cfg.train.device)
 
     # Set a random seed for reproducibility across typical libraries
-    config.set_random_seeds(cfg.train.random_seed)
-    # Benchmarking for performance optimization
-    if "cuda" in str(device):
-        torch.backends.cudnn.benchmark = True # TODO: Does this work with deterministic algorithms?
-    # Make PyTorch operations deterministic for reproducibility
-    if cfg.train.deterministic:
-        torch.use_deterministic_algorithms(mode=True, warn_only=True)
-    print(f"Torch deterministic algorithms: {torch.are_deterministic_algorithms_enabled()}")
+    set_random_seeds(cfg.train.random_seed)
 
     print(f"Creating the train dataset with db_path: {cfg.train.db_path_train}")
     train_dataset = MetaAudioDataset(db_path=cfg.train.db_path_train, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)

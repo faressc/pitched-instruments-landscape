@@ -203,7 +203,7 @@ if __name__ == "__main__":
     ax.set_xticks(np.arange(-1, 1.5, 0.5))  # Include endpoints
     ax.set_yticks(np.arange(-1, 1.5, 0.5))
     ax.set_aspect('equal', adjustable='box')
-    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.tick_params(axis='both', which='major', labelsize=14)
     plt.savefig(os.path.join(out_dir,'all_pitches.svg'))
     plt.close()
 
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     cbar.ax.set_xticklabels([], minor=False)  # Hide the major tick labels
 
     # Make minor ticks (our labels) more prominent
-    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=16)
+    cbar.ax.tick_params(axis='x', which='minor', length=0, labelsize=14)
 
     # Save the figure with tight layout
     plt.tight_layout(pad=0)  
