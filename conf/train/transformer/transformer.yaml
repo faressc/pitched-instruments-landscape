@@ -19,7 +19,7 @@ n_layer_decoder: 12
 n_head: 8
 dropout: 0.1
 
-std_multiplier: 0.
+std_multiplier: 0.005
 
 loss_fn:
   _target_: torch.nn.MSELoss
