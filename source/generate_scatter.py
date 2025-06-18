@@ -269,9 +269,18 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(1, figsize=(8, 8))
     all_values = np.vstack(list(pitch_timbres.values()))
     scatter = plt.scatter(all_values[:,0], all_values[:,1], c=all_values[:,2], cmap=cmap, edgecolor='k', s=75)
+    
+    max_value = np.max(np.abs(all_values[:, :2]))
+    max_value = max_value * 1.1  # Add some padding to the limits
+    # Set explicit axis limits to ensure square appearance
+    ax.set_xlim(-max_value, max_value)
+    ax.set_ylim(-max_value, max_value)
     ax.set_aspect('equal', adjustable='box')
     ax.tick_params(axis='both', which='major', labelsize=16)
-    plt.tight_layout(pad=0.5)  # Add some padding around the figure
+    
+    # Remove padding and ensure the figure fills the available space
+    plt.subplots_adjust(left=0.11, right=0.98, top=0.98, bottom=0.05)
+    # plt.tight_layout(pad=1.0)  # Remove padding around the plot
     plt.savefig(os.path.join(out_dir,'all_pitches_small.svg'))
     plt.savefig(os.path.join(out_dir,'all_pitches_small.png'))
     plt.close()
