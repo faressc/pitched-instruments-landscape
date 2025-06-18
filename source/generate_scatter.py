@@ -172,8 +172,8 @@ if __name__ == "__main__":
     for pt in tqdm.tqdm(range(min(pitches), max(pitches) + 1), desc="Generating scatter plots"):
 
         # Create the scatter plot
-        fig, ax = plt.subplots(1, figsize=(6, 6))
-        scatter = plt.scatter(pitch_timbres[pt][:,0], pitch_timbres[pt][:,1], c=pitch_timbres[pt][:,2], cmap=cmap, edgecolor='k', s=50)
+        fig, ax = plt.subplots(1, figsize=(8, 8))
+        scatter = plt.scatter(pitch_timbres[pt][:,0], pitch_timbres[pt][:,1], c=pitch_timbres[pt][:,2], cmap=cmap, edgecolor='k', s=75)
 
         # ax.axis('off')
 
@@ -193,20 +193,6 @@ if __name__ == "__main__":
 
         plt.savefig(os.path.join(out_dir,'%03d.svg' % (pt,)))
         plt.close()
-
-    # Generate a plot with all the pitches combined
-    fig, ax = plt.subplots(1, figsize=(6, 6))
-    all_values = np.vstack(list(pitch_timbres.values()))
-    scatter = plt.scatter(all_values[:,0], all_values[:,1], c=all_values[:,2], cmap=cmap, edgecolor='k', s=50)
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
-    ax.set_xticks(np.arange(-1, 1.5, 0.5))  # Include endpoints
-    ax.set_yticks(np.arange(-1, 1.5, 0.5))
-    ax.set_aspect('equal', adjustable='box')
-    ax.tick_params(axis='both', which='major', labelsize=14)
-    plt.savefig(os.path.join(out_dir,'all_pitches.svg'))
-    plt.savefig(os.path.join(out_dir,'all_pitches.png'))
-    plt.close()
 
     # Plot only the colorbar (legend) for instrument families
     cmap = plt.get_cmap('hsv')
@@ -253,4 +239,39 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(out_dir, 'legend_padded.svg'))
     plt.savefig(os.path.join(out_dir, 'legend_padded.png'))
 
+    plt.close()
+
+    # Generate a plot with all the pitches combined
+    fig, ax = plt.subplots(1, figsize=(10, 8))
+    all_values = np.vstack(list(pitch_timbres.values()))
+    scatter = plt.scatter(all_values[:,0], all_values[:,1], c=all_values[:,2], cmap=cmap, edgecolor='k', s=75)
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    ax.set_xticks(np.arange(-1, 1.5, 0.5))  # Include endpoints
+    ax.set_yticks(np.arange(-1, 1.5, 0.5))
+    ax.set_aspect('equal', adjustable='box')
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    # Add the colorbar
+    cbar = plt.colorbar(scatter, ax=ax, orientation='vertical')
+    cbar.set_ticks(tick_locs)
+    cbar.ax.set_yticks(label_locs, minor=True)
+    cbar.ax.set_yticklabels(tick_labels, minor=True)
+    cbar.ax.set_yticklabels([], minor=False)  # Hide the major tick labels
+    cbar.ax.tick_params(axis='y', which='minor', length=0, labelsize=14)
+    # Use a tuple for set_position and get the position from the main axis
+    pos = ax.get_position()
+    cbar.ax.set_position((0.82, pos.y0, 0.03, pos.height))  # [left, bottom, width, height]
+    plt.savefig(os.path.join(out_dir,'all_pitches_with_colorbar.svg'))
+    plt.savefig(os.path.join(out_dir,'all_pitches_with_colorbar.png'))
+    plt.close()
+
+    # Generate a plot with all the pitches combined
+    fig, ax = plt.subplots(1, figsize=(8, 8))
+    all_values = np.vstack(list(pitch_timbres.values()))
+    scatter = plt.scatter(all_values[:,0], all_values[:,1], c=all_values[:,2], cmap=cmap, edgecolor='k', s=75)
+    ax.set_aspect('equal', adjustable='box')
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    plt.tight_layout(pad=0.5)  # Add some padding around the figure
+    plt.savefig(os.path.join(out_dir,'all_pitches_small.svg'))
+    plt.savefig(os.path.join(out_dir,'all_pitches_small.png'))
     plt.close()
