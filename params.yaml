@@ -41,10 +41,10 @@ train:
     - 1024
     - 512
     - 2
-    rec_beta: 0.8
+    rec_beta: 0.0
     neighbor_beta: 1.0
     spa_beta: 0.1
-    kl_beta: 0.006
+    kl_beta: 0.0039
     note_cls_beta: 0.12
     family_cls_beta: 0.07
     instrument_cls_beta: 0.007
@@ -91,7 +91,7 @@ train:
   db_path_valid: data/processed/valid
   db_path_test: data/processed/test
   random_seed: 42
-  num_workers: 0
+  num_workers: 30
   pitch:
   - 48
   - 49
@@ -124,6 +124,6 @@ train:
   device: auto
   deterministic: true
   vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-  transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+  transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
 SAMPLING_RATE: 24000
 RANDOM_SEED: 42
