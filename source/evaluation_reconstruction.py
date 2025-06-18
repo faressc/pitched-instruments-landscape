@@ -150,17 +150,16 @@ if __name__ == "__main__":
 
             # fed the generated embeddings in the vae encoder again for pitch classification
             gt_pitch = data["metadata"]['pitch']
-            gt_pitch = (gt_pitch.unsqueeze(-1) == note_remap_tensor.cpu()).nonzero(as_tuple=False)[..., -1]
+            gt_pitch = (gt_pitch.unsqueeze(-1) == note_remap_tensor.cpu()).nonzero(as_tuple=False)[..., -1].cpu().numpy()
             gt_note_cls_predicted = vae.forward(emb, encoder_only=True)[2].argmax(dim=1).cpu().numpy()
             vae_cls_predicted = vae.forward(vae_predicted, encoder_only=True)[2].argmax(dim=1).cpu().numpy()
             transformer_cls_predicted = vae.forward(generated_transformer, encoder_only=True)[2].argmax(dim=1).cpu().numpy()
 
-            
-            gt_pitch_01 = np.array(gt_pitch) == np.array(gt_note_cls_predicted)
+            gt_pitch_01 = gt_pitch == gt_note_cls_predicted
             gt_pitch_01 = np.count_nonzero(gt_pitch_01) / len(gt_pitch_01)
-            vae_pitch_01 = np.array(gt_pitch) == np.array(vae_cls_predicted)
+            vae_pitch_01 = gt_pitch == vae_cls_predicted
             vae_pitch_01 = np.count_nonzero(vae_pitch_01) / len(vae_pitch_01)
-            transformer_pitch_01 = np.array(gt_pitch) == np.array(transformer_cls_predicted)
+            transformer_pitch_01 = gt_pitch == transformer_cls_predicted
             transformer_pitch_01 = np.count_nonzero(transformer_pitch_01) / len(transformer_pitch_01)
 
             smp_ind = 1
