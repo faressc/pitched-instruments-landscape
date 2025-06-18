@@ -77,7 +77,7 @@ if __name__ == "__main__":
     print(f"Creating the test dataset with db_path: {cfg.train.db_path_test}")
     test_dataset = MetaAudioDataset(db_path=cfg.train.db_path_test, max_num_samples=-1, has_audio=False, fast_forward_keygen=True)
 
-    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=True, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity)
+    sampler_train = CustomSampler(dataset=train_dataset, pitch=cfg.train.pitch, shuffle=False, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity)
     sampler_test = CustomSampler(dataset=test_dataset, pitch=cfg.train.pitch, shuffle=False, max_inst_per_family=cfg.train.max_inst_per_family, velocity=cfg.train.velocity)
 
 
