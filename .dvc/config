@@ -3,6 +3,7 @@
 [cache]
     shared = group
     type = symlink
+    dir = /home/christopher1/pitched-instruments-landscape/.dvc/cache
 [hydra]
     enabled = True
 ['remote "myremote"']
