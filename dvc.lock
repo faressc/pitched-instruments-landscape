@@ -184,12 +184,12 @@ stages:
       size: 8452
     - path: source/train_transformer.py
       hash: md5
-      md5: c341b28705385156450713cbfdd8ace5
-      size: 16621
+      md5: d6f3d232dc2c2fc4743f6b8c8d09dbff
+      size: 16730
     - path: source/transformer.py
       hash: md5
-      md5: f4223038b61bbb84a50e8066ea61eaa8
-      size: 3939
+      md5: 674f6cf0a163d446cce8a8687d9c0b2f
+      size: 4117
     params:
       params.yaml:
         train:
@@ -223,7 +223,7 @@ stages:
             rec_beta: 0.8
             neighbor_beta: 1.0
             spa_beta: 0.1
-            kl_beta: 0.006
+            kl_beta: 0.0039
             note_cls_beta: 0.12
             family_cls_beta: 0.07
             instrument_cls_beta: 0.007
@@ -257,12 +257,12 @@ stages:
             block_size: 300
             input_dimension: 128
             internal_dimension: 512
-            feedforward_dimension: 4096
+            feedforward_dimension: 8192
             n_layer_encoder: 8
             n_layer_decoder: 12
             n_head: 8
             dropout: 0.1
-            std_multiplier: 0.0
+            std_multiplier: 0.001
             loss_fn:
               _target_: torch.nn.MSELoss
               reduction: mean
@@ -270,7 +270,7 @@ stages:
           db_path_valid: data/processed/valid
           db_path_test: data/processed/test
           random_seed: 42
-          num_workers: 0
+          num_workers: 8
           pitch:
           - 48
           - 49
@@ -300,13 +300,13 @@ stages:
           max_inst_per_family: 10
           velocity:
           - 100
-          device: auto
+          device: cuda:0
           deterministic: true
           vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
-          transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+          transformer_path: out/transformer/checkpoints/transformer_final_hazel-shay_epoch_5000.torch
     outs:
     - path: out/transformer/
       hash: md5
-      md5: e03e57a00ef37cc064029a660c087af1.dir
-      size: 2833180916
+      md5: c99bccce84151ab7e6eea892f29243a5.dir
+      size: 4848363416
       nfiles: 12
