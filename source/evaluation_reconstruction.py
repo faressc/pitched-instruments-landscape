@@ -148,8 +148,12 @@ if __name__ == "__main__":
     transformer.device = device
     transformer.eval()
 
-    def evaluate(dataloader):
+    def evaluate(dataloader, plot=False):
         losses = []
+        img_gt = None
+        img_vae = None
+        img_transformer = None
+
         for b, data in enumerate(tqdm.tqdm(dataloader)):
             emb = data["embeddings"].to(device)
 
@@ -183,19 +187,20 @@ if __name__ == "__main__":
             transformer_pitch_01 = gt_pitch == transformer_cls_predicted
             transformer_pitch_01 = np.count_nonzero(transformer_pitch_01) / len(transformer_pitch_01)
 
-            smp_ind = 1
-            img_gt = emb[smp_ind,:num_tokens,:].cpu().detach().numpy()
-            img_vae = vae_predicted[smp_ind].cpu().detach().numpy()
-            img_transformer = generated_transformer[smp_ind].cpu().detach().numpy()
+            if img_gt is None or img_vae is None or img_transformer is None:
+                smp_ind = 1
+                img_gt = emb[smp_ind,:num_tokens,:].cpu().detach().numpy()
+                img_vae = vae_predicted[smp_ind].cpu().detach().numpy()
+                img_transformer = generated_transformer[smp_ind].cpu().detach().numpy()
 
+            losses.append([loss_vae, loss_transformer, gt_pitch_01, vae_pitch_01, transformer_pitch_01])
+
+        if plot and img_gt is not None and img_vae is not None and img_transformer is not None:
             save_crop = 30
             cmap = 'viridis'
             plt.imsave(os.path.join(log_folder, "img_gt.png"), img_gt[:save_crop,:], cmap=cmap)
             plt.imsave(os.path.join(log_folder, "img_vae.png"), img_vae[:save_crop,:], cmap=cmap)
             plt.imsave(os.path.join(log_folder, "img_transformer.png"), img_transformer[:save_crop,:], cmap=cmap)
-
-            losses.append([loss_vae, loss_transformer, gt_pitch_01, vae_pitch_01, transformer_pitch_01])
-
 
         loss_vae, loss_transformer, gt_pitch_01, vae_pitch_01, transformer_pitch_01 = np.mean(losses, axis=0)
         print(f"mean loss vae: {loss_vae} \t mean loss transformer: {loss_transformer}")
@@ -203,6 +208,6 @@ if __name__ == "__main__":
 
     print("######## Evaluation ########")
     print("Evaluating on train dataset")
-    evaluate(train_dataloader)
+    evaluate(train_dataloader, plot=True)
     print("Evaluating on test dataset")
     evaluate(test_dataloader)
