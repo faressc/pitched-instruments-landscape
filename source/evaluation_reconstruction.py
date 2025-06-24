@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sys
+import shutil
 
 import tqdm
 
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     log_folder = "out/evaluation_reconstruction"
     if os.path.exists(log_folder):
         print(f"Log folder {log_folder} already exists. Removing it.")
-        os.remove(log_folder)
+        shutil.rmtree(log_folder)
     else:
         print(f"Creating log folder {log_folder}.")
     os.makedirs(log_folder, exist_ok=True)
@@ -197,8 +198,8 @@ if __name__ == "__main__":
 
 
         loss_vae, loss_transformer, gt_pitch_01, vae_pitch_01, transformer_pitch_01 = np.mean(losses, axis=0)
-        print('mean loss vae: %.6f \t mean loss transformer: %.6f' % (loss_vae, loss_transformer))
-        print('gt pitch classification 0/1 accuracy: %.6f \t vae pitch classification 0/1 accuracy: %.6f \t transformer pitch classification 0/1 accuracy: %.6f' % (gt_pitch_01, vae_pitch_01, transformer_pitch_01))
+        print(f"mean loss vae: {loss_vae} \t mean loss transformer: {loss_transformer}")
+        print(f"gt pitch classification 0/1 accuracy: {gt_pitch_01} \t vae pitch classification 0/1 accuracy: {vae_pitch_01} \t transformer pitch classification 0/1 accuracy: {transformer_pitch_01}")
 
     print("######## Evaluation ########")
     print("Evaluating on train dataset")
