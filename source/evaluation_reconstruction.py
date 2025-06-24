@@ -1,9 +1,8 @@
 import random
 import numpy as np
-import gc
 import matplotlib.pyplot as plt
 import os
-import shutil
+import sys
 
 import tqdm
 
@@ -14,12 +13,9 @@ from torch.utils.data import DataLoader
 from transformers import EncodecModel
 
 from omegaconf import OmegaConf
-from utils import logs, config
-from hydra.utils import instantiate
+from utils import config
 
 from dataset import MetaAudioDataset, CustomSampler
-
-import utils.ffmpeg_helper as ffmpeg
 
 def set_random_seeds(random_seed: int) -> None:
     if "random" in globals():
@@ -46,6 +42,29 @@ def set_random_seeds(random_seed: int) -> None:
         print("The 'scipy' package is not imported, skipping scipy seed.")
 
 if __name__ == "__main__":
+    log_folder = "out/evaluation_reconstruction"
+    if os.path.exists(log_folder):
+        print(f"Log folder {log_folder} already exists. Removing it.")
+        os.remove(log_folder)
+    else:
+        print(f"Creating log folder {log_folder}.")
+    os.makedirs(log_folder, exist_ok=True)
+
+    log_file_path = os.path.join(log_folder, "evaluation_reconstruction.log")
+
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+    class Logger(object):
+        def __init__(self, filename):
+            self.terminal = sys.stdout
+            self.log = open(filename, "a")
+        def write(self, message):
+            self.terminal.write(message)
+            self.log.write(message)
+        def flush(self):
+            self.terminal.flush()
+            self.log.flush()
+    sys.stdout = Logger(log_file_path)
+
     print("##### Starting Reconstruction Evaluation Stage #####")
 
     cfg = OmegaConf.load("params.yaml")
@@ -124,7 +143,8 @@ if __name__ == "__main__":
 
     # # load transformer
     print(f"Loading the transformer model from: {cfg.train.transformer_path}")
-    transformer = torch.load(cfg.train.transformer_path, weights_only=False).to(device)
+    transformer = torch.load(cfg.train.transformer_path, map_location=device, weights_only=False)
+    transformer.device = device
     transformer.eval()
 
     def evaluate(dataloader):
@@ -169,10 +189,9 @@ if __name__ == "__main__":
 
             save_crop = 30
             cmap = 'viridis'
-            plt.imsave("out/img_gt.png", img_gt[:save_crop,:], cmap=cmap)
-            plt.imsave("out/img_vae.png", img_vae[:save_crop,:], cmap=cmap)
-            plt.imsave("out/img_transformer.png", img_transformer[:save_crop,:], cmap=cmap)
-
+            plt.imsave(os.path.join(log_folder, "img_gt.png"), img_gt[:save_crop,:], cmap=cmap)
+            plt.imsave(os.path.join(log_folder, "img_vae.png"), img_vae[:save_crop,:], cmap=cmap)
+            plt.imsave(os.path.join(log_folder, "img_transformer.png"), img_transformer[:save_crop,:], cmap=cmap)
 
             losses.append([loss_vae, loss_transformer, gt_pitch_01, vae_pitch_01, transformer_pitch_01])
 
