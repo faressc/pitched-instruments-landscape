@@ -85,7 +85,7 @@ stages:
             spa_beta: 0.1
             kl_beta: 0.0039
             note_cls_beta: 0.12
-            family_cls_beta: 0.07
+            family_cls_beta: 0.0
             instrument_cls_beta: 0.007
             reg_scaling_exp_neighbor: 0.5
             reg_scaling_exp_family: 1.5
@@ -122,7 +122,7 @@ stages:
             n_layer_decoder: 12
             n_head: 8
             dropout: 0.1
-            condition_model_path: out/vae/checkpoints/vae_final_epoch_10000.torch
+            std_multiplier: 0.01
             loss_fn:
               _target_: torch.nn.MSELoss
               reduction: mean
@@ -130,7 +130,7 @@ stages:
           db_path_valid: data/processed/valid
           db_path_test: data/processed/test
           random_seed: 42
-          num_workers: 0
+          num_workers: 10
           pitch:
           - 48
           - 49
@@ -162,13 +162,13 @@ stages:
           - 100
           device: auto
           deterministic: true
-          vae_path: out/vae/checkpoints/vae_final_epoch_10000.torch
-          transformer_path: out/transformer/checkpoints/transformer_final_epoch_5000.torch
+          vae_path: out/vae/checkpoints/vae_final_timid-orfe_epoch_15000.torch
+          transformer_path: out/transformer/checkpoints/transformer_final_sonic-fond_epoch_5000.torch
     outs:
     - path: out/vae/
       hash: md5
-      md5: cca57b15fc4be8d7a161786cacb927b9.dir
-      size: 4249298008
+      md5: 821d362304230a7faec22593823f745e.dir
+      size: 4249291523
       nfiles: 30
   train_transformer:
     cmd: python -u source/train_transformer.py
